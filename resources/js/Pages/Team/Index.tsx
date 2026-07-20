@@ -78,10 +78,15 @@ export default function TeamIndex({
                 <div className="mb-4 rounded-xl border border-emerald-200 bg-emerald-50 px-4 py-3 text-sm text-emerald-800 dark:border-emerald-900 dark:bg-emerald-950/40 dark:text-emerald-200">
                     {flash.success}
                     {flash.invite_password && flash.invite_email && (
-                        <div className="mt-2 rounded-lg bg-white/70 px-3 py-2 font-mono text-xs dark:bg-slate-900/50">
-                            Login: {flash.invite_email}
-                            <br />
-                            Temp password: {flash.invite_password}
+                        <div className="mt-2 rounded-lg bg-white/70 px-3 py-2 text-xs dark:bg-slate-900/50">
+                            <p className="mb-1 font-medium">
+                                Login details (also sent by email):
+                            </p>
+                            <p className="font-mono">
+                                Login: {flash.invite_email}
+                                <br />
+                                Temp password: {flash.invite_password}
+                            </p>
                         </div>
                     )}
                 </div>

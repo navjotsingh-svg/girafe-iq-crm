@@ -99,8 +99,12 @@ class TeamController extends Controller
 
         $result = $service->invite($company, $request->user(), $data);
 
+        $message = $result['email_sent']
+            ? 'Invite emailed to '.$result['user']->email.' with their role and login details.'
+            : 'Team member created, but the invite email could not be sent. Share the temporary password below.';
+
         return redirect()->route('team.index')
-            ->with('success', 'Team member invited.')
+            ->with('success', $message)
             ->with('invite_password', $result['temporary_password'])
             ->with('invite_email', $result['user']->email);
     }

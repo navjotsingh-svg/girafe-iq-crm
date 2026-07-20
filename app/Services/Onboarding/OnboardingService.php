@@ -52,6 +52,7 @@ class OnboardingService
 
             $adminRole = Role::findOrCreate('company_admin', 'web');
             $user->assignRole($adminRole);
+            $user->setRelation('company', $company);
 
             $this->logger->log('company.registered', $company, [
                 'company' => $company->name,
