@@ -199,8 +199,9 @@ class IndustryPackService
     private function seedTenantRoles(Company $company): void
     {
         app(PermissionRegistrar::class)->setPermissionsTeamId($company->id);
+        app(PermissionRegistrar::class)->forgetCachedPermissions();
 
-        $allPermissions = Permission::all();
+        $allPermissions = $this->ensurePermissionsExist();
 
         foreach (config('permissions.roles') as $roleName) {
             if ($roleName === 'super_admin') {
@@ -213,10 +214,10 @@ class IndustryPackService
                 $role->syncPermissions($allPermissions);
             } elseif ($roleName === 'viewer') {
                 $role->syncPermissions(
-                    Permission::query()->where('name', 'like', '%.view')->get()
+                    $allPermissions->filter(fn (Permission $p) => str_ends_with($p->name, '.view'))
                 );
             } elseif ($roleName === 'sales_executive') {
-                $role->syncPermissions([
+                $role->syncPermissions($this->permissionsByName([
                     'dashboard.view',
                     'enquiries.view', 'enquiries.create', 'enquiries.update', 'enquiries.convert',
                     'leads.view', 'leads.create', 'leads.update',
@@ -225,9 +226,9 @@ class IndustryPackService
                     'tasks.view', 'tasks.create', 'tasks.update',
                     'calendar.view',
                     'documents.view',
-                ]);
+                ], $allPermissions));
             } elseif ($roleName === 'sales_manager') {
-                $role->syncPermissions([
+                $role->syncPermissions($this->permissionsByName([
                     'dashboard.view',
                     'enquiries.view', 'enquiries.create', 'enquiries.update', 'enquiries.convert',
                     'leads.view', 'leads.create', 'leads.update', 'leads.assign', 'leads.merge',
@@ -238,24 +239,46 @@ class IndustryPackService
                     'team.view',
                     'reports.view', 'reports.export',
                     'documents.view', 'documents.manage',
-                ]);
+                ], $allPermissions));
             } elseif ($roleName === 'marketing') {
-                $role->syncPermissions([
+                $role->syncPermissions($this->permissionsByName([
                     'dashboard.view',
                     'leads.view', 'leads.create',
                     'campaigns.view', 'campaigns.manage',
                     'email.view', 'email.manage',
                     'whatsapp.view',
                     'reports.view',
-                ]);
+                ], $allPermissions));
             } elseif ($roleName === 'support') {
-                $role->syncPermissions([
+                $role->syncPermissions($this->permissionsByName([
                     'dashboard.view',
                     'customers.view', 'customers.update',
                     'tasks.view', 'tasks.create', 'tasks.update',
                     'documents.view',
-                ]);
+                ], $allPermissions));
             }
         }
+    }
+
+    /**
+     * @return \Illuminate\Support\Collection<int, Permission>
+     */
+    private function ensurePermissionsExist()
+    {
+        foreach (config('permissions.permissions', []) as $permission) {
+            Permission::findOrCreate($permission, 'web');
+        }
+
+        return Permission::query()->where('guard_name', 'web')->get();
+    }
+
+    /**
+     * @param  list<string>  $names
+     * @param  \Illuminate\Support\Collection<int, Permission>  $all
+     * @return \Illuminate\Support\Collection<int, Permission>
+     */
+    private function permissionsByName(array $names, $all)
+    {
+        return $all->whereIn('name', $names)->values();
     }
 }

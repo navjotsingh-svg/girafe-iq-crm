@@ -27,16 +27,18 @@ class PermissionSeeder extends Seeder
                     Permission::query()->where('name', 'like', '%.view')->get()
                 );
             } elseif ($roleName === 'sales_executive') {
-                $role->syncPermissions([
-                    'dashboard.view',
-                    'enquiries.view', 'enquiries.create', 'enquiries.update', 'enquiries.convert',
-                    'leads.view', 'leads.create', 'leads.update',
-                    'pipeline.view', 'deals.view', 'deals.create', 'deals.update',
-                    'customers.view',
-                    'tasks.view', 'tasks.create', 'tasks.update',
-                    'calendar.view',
-                    'documents.view',
-                ]);
+                $role->syncPermissions(
+                    Permission::query()->whereIn('name', [
+                        'dashboard.view',
+                        'enquiries.view', 'enquiries.create', 'enquiries.update', 'enquiries.convert',
+                        'leads.view', 'leads.create', 'leads.update',
+                        'pipeline.view', 'deals.view', 'deals.create', 'deals.update',
+                        'customers.view',
+                        'tasks.view', 'tasks.create', 'tasks.update',
+                        'calendar.view',
+                        'documents.view',
+                    ])->get()
+                );
             }
         }
     }

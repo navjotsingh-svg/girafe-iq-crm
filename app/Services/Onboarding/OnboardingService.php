@@ -6,6 +6,7 @@ use App\Models\Company;
 use App\Models\User;
 use App\Services\Tenant\ActivityLogger;
 use Illuminate\Support\Facades\DB;
+use Spatie\Permission\Models\Permission;
 use Spatie\Permission\Models\Role;
 use Spatie\Permission\PermissionRegistrar;
 
@@ -39,6 +40,11 @@ class OnboardingService
             ]);
 
             app(PermissionRegistrar::class)->setPermissionsTeamId($company->id);
+            app(PermissionRegistrar::class)->forgetCachedPermissions();
+
+            foreach (config('permissions.permissions', []) as $permission) {
+                Permission::findOrCreate($permission, 'web');
+            }
 
             $user = User::create([
                 'company_id' => $company->id,
@@ -51,6 +57,7 @@ class OnboardingService
             ]);
 
             $adminRole = Role::findOrCreate('company_admin', 'web');
+            $adminRole->syncPermissions(Permission::query()->where('guard_name', 'web')->get());
             $user->assignRole($adminRole);
             $user->setRelation('company', $company);
 
