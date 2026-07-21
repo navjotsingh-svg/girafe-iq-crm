@@ -29,6 +29,9 @@ class Enquiry extends Model
         'lead_source_id',
         'status',
         'channel',
+        'platform',
+        'external_id',
+        'raw_payload',
         'message',
         'assigned_user_id',
         'created_by',
@@ -40,6 +43,7 @@ class Enquiry extends Model
     {
         return [
             'converted_at' => 'datetime',
+            'raw_payload' => 'array',
         ];
     }
 

@@ -102,6 +102,7 @@ class SettingsController extends Controller
                     'has_token' => ! empty($company->settings['providers']['whatsapp']['api_token']),
                 ],
             ],
+            'integrations' => app(SettingsService::class)->integrationsForUi($company),
         ]);
     }
 
@@ -143,6 +144,24 @@ class SettingsController extends Controller
 
         return redirect()->route('settings.index', ['tab' => 'providers'])
             ->with('success', 'Provider settings saved.');
+    }
+
+    public function updateIntegration(Request $request, SettingsService $service): RedirectResponse
+    {
+        $platforms = array_keys(config('integrations.platforms', []));
+
+        $data = $request->validate([
+            'platform' => ['required', Rule::in($platforms)],
+            'enabled' => 'nullable|boolean',
+            'access_token' => 'nullable|string|max:2000',
+            'verify_token' => 'nullable|string|max:255',
+            'regenerate_secret' => 'nullable|boolean',
+        ]);
+
+        $service->updateIntegration($request->user()->company, $data);
+
+        return redirect()->route('settings.index', ['tab' => 'integrations'])
+            ->with('success', 'Integration saved.');
     }
 
     public function storeLeadField(Request $request, SettingsService $service): RedirectResponse

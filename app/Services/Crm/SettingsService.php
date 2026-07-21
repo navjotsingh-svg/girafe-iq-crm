@@ -69,6 +69,86 @@ class SettingsService
     }
 
     /**
+     * Enable/disable lead sync platforms and rotate webhook secrets.
+     *
+     * @param  array{platform: string, enabled?: bool, access_token?: string|null, verify_token?: string|null, regenerate_secret?: bool}  $data
+     */
+    public function updateIntegration(Company $company, array $data): Company
+    {
+        $platform = $data['platform'];
+        $catalog = config("integrations.platforms.{$platform}");
+        if (! $catalog) {
+            abort(422, 'Unknown platform.');
+        }
+
+        $settings = $company->settings ?? [];
+        $integrations = $settings['integrations'] ?? [];
+        $current = $integrations[$platform] ?? [];
+
+        $secret = $current['webhook_secret'] ?? Str::random(40);
+        if (! empty($data['regenerate_secret']) || empty($current['webhook_secret'])) {
+            $secret = Str::random(40);
+        }
+
+        $integrations[$platform] = [
+            'enabled' => (bool) ($data['enabled'] ?? ($current['enabled'] ?? false)),
+            'webhook_secret' => $secret,
+            'verify_token' => $data['verify_token']
+                ?? ($current['verify_token'] ?? Str::random(24)),
+            'access_token' => array_key_exists('access_token', $data) && $data['access_token'] !== null && $data['access_token'] !== ''
+                ? $data['access_token']
+                : ($current['access_token'] ?? null),
+            'connected_at' => ! empty($data['enabled'])
+                ? ($current['connected_at'] ?? now()->toIso8601String())
+                : ($current['connected_at'] ?? null),
+        ];
+
+        $settings['integrations'] = $integrations;
+        $company->update(['settings' => $settings]);
+
+        $this->logger->log('settings.integration_updated', $company, [
+            'platform' => $platform,
+            'enabled' => $integrations[$platform]['enabled'],
+        ]);
+
+        return $company->fresh();
+    }
+
+    /**
+     * @return list<array<string, mixed>>
+     */
+    public function integrationsForUi(Company $company): array
+    {
+        $stored = $company->settings['integrations'] ?? [];
+        $items = [];
+
+        foreach (config('integrations.platforms', []) as $key => $meta) {
+            $row = $stored[$key] ?? [];
+            $secret = $row['webhook_secret'] ?? null;
+
+            $webhookPath = $key === 'facebook_ads' || $key === 'instagram'
+                ? "/webhooks/{$company->uuid}/meta"
+                : "/webhooks/{$company->uuid}/{$key}";
+
+            $items[] = [
+                'key' => $key,
+                'name' => $meta['name'],
+                'description' => $meta['description'],
+                'docs' => $meta['docs'] ?? '',
+                'icon' => $meta['icon'] ?? $key,
+                'enabled' => (bool) ($row['enabled'] ?? false),
+                'webhook_url' => url($webhookPath),
+                'webhook_secret' => $secret,
+                'verify_token' => $row['verify_token'] ?? null,
+                'has_access_token' => ! empty($row['access_token']),
+                'connected_at' => $row['connected_at'] ?? null,
+            ];
+        }
+
+        return $items;
+    }
+
+    /**
      * @param  array<string, mixed>  $data
      */
     public function createLeadField(Company $company, array $data): CustomFieldDefinition

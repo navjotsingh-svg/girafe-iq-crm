@@ -19,6 +19,7 @@ use App\Http\Controllers\Crm\TeamController;
 use App\Http\Controllers\Crm\WhatsAppController;
 use App\Http\Controllers\Onboarding\OnboardingController;
 use App\Http\Controllers\ProfileController;
+use App\Http\Controllers\Webhooks\LeadWebhookController;
 use Illuminate\Support\Facades\Route;
 use Inertia\Inertia;
 
@@ -53,6 +54,17 @@ Route::get('/invites/{token}', [\App\Http\Controllers\Auth\TeamInviteController:
 Route::post('/invites/{token}', [\App\Http\Controllers\Auth\TeamInviteController::class, 'store'])
     ->where('token', '[A-Za-z0-9]+')
     ->name('invites.accept');
+
+/*
+| Public lead webhooks — Meta / Google / Website / Zapier / WhatsApp
+*/
+Route::get('/webhooks/{companyUuid}/meta', [LeadWebhookController::class, 'verifyMeta'])
+    ->name('webhooks.meta.verify');
+Route::post('/webhooks/{companyUuid}/meta', [LeadWebhookController::class, 'meta'])
+    ->name('webhooks.meta');
+Route::post('/webhooks/{companyUuid}/{platform}', [LeadWebhookController::class, 'ingest'])
+    ->where('platform', 'google_ads|website|zapier|whatsapp|instagram|facebook_ads')
+    ->name('webhooks.ingest');
 
 Route::middleware(['auth', 'verified', 'tenant'])->group(function () {
     Route::prefix('onboarding')->name('onboarding.')->group(function () {
@@ -100,6 +112,7 @@ Route::middleware(['auth', 'verified', 'tenant'])->group(function () {
         Route::get('/settings', [SettingsController::class, 'index'])->name('settings.index');
         Route::patch('/settings/company', [SettingsController::class, 'updateCompany'])->name('settings.company');
         Route::patch('/settings/providers', [SettingsController::class, 'updateProviders'])->name('settings.providers');
+        Route::patch('/settings/integrations', [SettingsController::class, 'updateIntegration'])->name('settings.integrations');
         Route::post('/settings/fields', [SettingsController::class, 'storeLeadField'])->name('settings.fields.store');
         Route::delete('/settings/fields/{field}', [SettingsController::class, 'destroyLeadField'])->name('settings.fields.destroy');
         Route::post('/settings/stages', [SettingsController::class, 'storePipelineStage'])->name('settings.stages.store');

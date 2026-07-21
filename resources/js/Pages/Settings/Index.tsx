@@ -37,11 +37,26 @@ type Stage = {
     deals_count: number;
 };
 
+type IntegrationCard = {
+    key: string;
+    name: string;
+    description: string;
+    docs: string;
+    icon: string;
+    enabled: boolean;
+    webhook_url: string;
+    webhook_secret: string | null;
+    verify_token: string | null;
+    has_access_token: boolean;
+    connected_at: string | null;
+};
+
 const TABS = [
     { key: 'company', label: 'Company' },
     { key: 'fields', label: 'Lead fields' },
     { key: 'pipeline', label: 'Pipeline stages' },
     { key: 'providers', label: 'Providers' },
+    { key: 'integrations', label: 'Integrations' },
 ];
 
 const fieldClass =
@@ -56,6 +71,7 @@ export default function SettingsIndex({
     timezones,
     currencies,
     providers,
+    integrations = [],
 }: {
     tab: string;
     company: CompanyData;
@@ -81,6 +97,7 @@ export default function SettingsIndex({
             has_token: boolean;
         };
     };
+    integrations?: IntegrationCard[];
 }) {
     const flash = (
         usePage().props as { flash?: { success?: string; error?: string } }
@@ -104,7 +121,7 @@ export default function SettingsIndex({
             <div className="mb-6">
                 <h2 className="text-xl font-bold">Settings</h2>
                 <p className="text-sm text-slate-500">
-                    Company profile, lead fields & pipeline stages
+                    Company profile, lead fields, pipeline & lead integrations
                 </p>
             </div>
 
@@ -135,6 +152,7 @@ export default function SettingsIndex({
             {tab === 'fields' && <FieldsTab fields={leadFields} />}
             {tab === 'pipeline' && <PipelineTab pipeline={pipeline} />}
             {tab === 'providers' && <ProvidersTab providers={providers} />}
+            {tab === 'integrations' && <IntegrationsTab integrations={integrations} />}
         </CrmLayout>
     );
 }
@@ -746,6 +764,259 @@ function ProvidersTab({
                 Save providers
             </button>
         </form>
+    );
+}
+
+function IntegrationsTab({ integrations }: { integrations: IntegrationCard[] }) {
+    const [copied, setCopied] = useState<string | null>(null);
+
+    const copyText = async (key: string, text: string) => {
+        try {
+            await navigator.clipboard.writeText(text);
+            setCopied(key);
+            setTimeout(() => setCopied(null), 1800);
+        } catch {
+            // ignore
+        }
+    };
+
+    const save = (payload: Record<string, string | boolean | number>) => {
+        router.patch(route('settings.integrations'), payload, { preserveScroll: true });
+    };
+
+    return (
+        <div className="space-y-5">
+            <div className="rounded-2xl border border-emerald-100 bg-gradient-to-br from-emerald-50 to-teal-50 p-5 dark:border-emerald-900 dark:from-emerald-950/40 dark:to-slate-900">
+                <h3 className="text-base font-bold text-slate-900 dark:text-slate-100">
+                    Sync leads from ads & forms
+                </h3>
+                <p className="mt-1 text-sm text-slate-600 dark:text-slate-400">
+                    Enable a platform, copy its webhook URL + secret, then connect Facebook Lead Ads,
+                    Instagram, Google Ads, your website, or Zapier/Make. New leads land in{' '}
+                    <strong>Enquiries</strong> automatically.
+                </p>
+            </div>
+
+            <div className="grid gap-4 lg:grid-cols-2">
+                {integrations.map((item) => (
+                    <div
+                        key={item.key}
+                        className={`rounded-2xl border bg-white p-5 shadow-sm dark:bg-slate-900 ${
+                            item.enabled
+                                ? 'border-emerald-300 dark:border-emerald-700'
+                                : 'border-slate-200 dark:border-slate-800'
+                        }`}
+                    >
+                        <div className="flex items-start justify-between gap-3">
+                            <div>
+                                <div className="flex items-center gap-2">
+                                    <span className="flex h-9 w-9 items-center justify-center rounded-xl bg-slate-100 text-sm font-bold uppercase text-slate-700 dark:bg-slate-800 dark:text-slate-200">
+                                        {item.icon.slice(0, 2)}
+                                    </span>
+                                    <div>
+                                        <h4 className="font-semibold text-slate-900 dark:text-slate-100">
+                                            {item.name}
+                                        </h4>
+                                        <p className="text-xs text-slate-500">{item.description}</p>
+                                    </div>
+                                </div>
+                            </div>
+                            <button
+                                type="button"
+                                onClick={() =>
+                                    save({
+                                        platform: item.key,
+                                        enabled: !item.enabled,
+                                    })
+                                }
+                                className={`relative h-7 w-12 shrink-0 rounded-full transition ${
+                                    item.enabled ? 'bg-emerald-600' : 'bg-slate-300 dark:bg-slate-700'
+                                }`}
+                                aria-label={item.enabled ? 'Disable' : 'Enable'}
+                            >
+                                <span
+                                    className={`absolute top-0.5 h-6 w-6 rounded-full bg-white shadow transition ${
+                                        item.enabled ? 'left-5' : 'left-0.5'
+                                    }`}
+                                />
+                            </button>
+                        </div>
+
+                        <p className="mt-3 text-xs leading-relaxed text-slate-500">{item.docs}</p>
+
+                        {item.enabled && (
+                            <div className="mt-4 space-y-3 rounded-xl border border-slate-100 bg-slate-50 p-3 dark:border-slate-800 dark:bg-slate-950/50">
+                                <div>
+                                    <div className="mb-1 flex items-center justify-between">
+                                        <span className="text-xs font-semibold uppercase tracking-wide text-slate-500">
+                                            Webhook URL
+                                        </span>
+                                        <button
+                                            type="button"
+                                            onClick={() => copyText(`${item.key}-url`, item.webhook_url)}
+                                            className="text-xs font-semibold text-emerald-600 hover:underline"
+                                        >
+                                            {copied === `${item.key}-url` ? 'Copied' : 'Copy'}
+                                        </button>
+                                    </div>
+                                    <code className="block break-all rounded-lg bg-white px-2.5 py-2 text-[11px] text-slate-700 ring-1 ring-slate-200 dark:bg-slate-900 dark:text-slate-300 dark:ring-slate-700">
+                                        {item.webhook_url}
+                                    </code>
+                                </div>
+
+                                {item.webhook_secret && (
+                                    <div>
+                                        <div className="mb-1 flex items-center justify-between">
+                                            <span className="text-xs font-semibold uppercase tracking-wide text-slate-500">
+                                                Webhook secret
+                                            </span>
+                                            <div className="flex gap-2">
+                                                <button
+                                                    type="button"
+                                                    onClick={() =>
+                                                        copyText(
+                                                            `${item.key}-secret`,
+                                                            item.webhook_secret || '',
+                                                        )
+                                                    }
+                                                    className="text-xs font-semibold text-emerald-600 hover:underline"
+                                                >
+                                                    {copied === `${item.key}-secret`
+                                                        ? 'Copied'
+                                                        : 'Copy'}
+                                                </button>
+                                                <button
+                                                    type="button"
+                                                    onClick={() =>
+                                                        save({
+                                                            platform: item.key,
+                                                            enabled: true,
+                                                            regenerate_secret: true,
+                                                        })
+                                                    }
+                                                    className="text-xs font-semibold text-slate-500 hover:underline"
+                                                >
+                                                    Rotate
+                                                </button>
+                                            </div>
+                                        </div>
+                                        <code className="block break-all rounded-lg bg-white px-2.5 py-2 text-[11px] text-slate-700 ring-1 ring-slate-200 dark:bg-slate-900 dark:text-slate-300 dark:ring-slate-700">
+                                            {item.webhook_secret}
+                                        </code>
+                                        <p className="mt-1 text-[11px] text-slate-500">
+                                            Send as header <code>X-Webhook-Secret</code> or query{' '}
+                                            <code>?secret=…</code>
+                                        </p>
+                                    </div>
+                                )}
+
+                                {(item.key === 'facebook_ads' || item.key === 'instagram') &&
+                                    item.verify_token && (
+                                        <div>
+                                            <div className="mb-1 flex items-center justify-between">
+                                                <span className="text-xs font-semibold uppercase tracking-wide text-slate-500">
+                                                    Meta verify token
+                                                </span>
+                                                <button
+                                                    type="button"
+                                                    onClick={() =>
+                                                        copyText(
+                                                            `${item.key}-verify`,
+                                                            item.verify_token || '',
+                                                        )
+                                                    }
+                                                    className="text-xs font-semibold text-emerald-600 hover:underline"
+                                                >
+                                                    {copied === `${item.key}-verify`
+                                                        ? 'Copied'
+                                                        : 'Copy'}
+                                                </button>
+                                            </div>
+                                            <code className="block break-all rounded-lg bg-white px-2.5 py-2 text-[11px] text-slate-700 ring-1 ring-slate-200 dark:bg-slate-900 dark:text-slate-300 dark:ring-slate-700">
+                                                {item.verify_token}
+                                            </code>
+                                        </div>
+                                    )}
+
+                                {(item.key === 'facebook_ads' || item.key === 'instagram') && (
+                                    <MetaTokenForm
+                                        platform={item.key}
+                                        hasToken={item.has_access_token}
+                                        onSave={(token) =>
+                                            save({
+                                                platform: item.key,
+                                                enabled: true,
+                                                access_token: token,
+                                            })
+                                        }
+                                    />
+                                )}
+
+                                <div className="rounded-lg bg-white/80 px-3 py-2 text-[11px] text-slate-600 ring-1 ring-slate-200 dark:bg-slate-900 dark:text-slate-400 dark:ring-slate-700">
+                                    <strong>Example JSON body:</strong>
+                                    <pre className="mt-1 overflow-x-auto whitespace-pre-wrap">{`{
+  "name": "Riya Patel",
+  "email": "riya@example.com",
+  "phone": "+9198xxxxxxx",
+  "message": "Interested in 2BHK",
+  "external_id": "optional-unique-id"
+}`}</pre>
+                                </div>
+                            </div>
+                        )}
+                    </div>
+                ))}
+            </div>
+        </div>
+    );
+}
+
+function MetaTokenForm({
+    platform,
+    hasToken,
+    onSave,
+}: {
+    platform: string;
+    hasToken: boolean;
+    onSave: (token: string) => void;
+}) {
+    const [token, setToken] = useState('');
+
+    return (
+        <div>
+            <InputLabel
+                htmlFor={`${platform}-access-token`}
+                value={
+                    hasToken
+                        ? 'Meta Page access token (leave blank to keep)'
+                        : 'Meta Page access token (optional)'
+                }
+            />
+            <div className="mt-1 flex gap-2">
+                <TextInput
+                    id={`${platform}-access-token`}
+                    type="password"
+                    value={token}
+                    className={fieldClass + ' flex-1'}
+                    placeholder="EAAB…"
+                    onChange={(e) => setToken(e.target.value)}
+                />
+                <button
+                    type="button"
+                    disabled={!token}
+                    onClick={() => {
+                        onSave(token);
+                        setToken('');
+                    }}
+                    className="rounded-xl bg-slate-900 px-3 py-2 text-xs font-semibold text-white disabled:opacity-40 dark:bg-emerald-600"
+                >
+                    Save
+                </button>
+            </div>
+            <p className="mt-1 text-[11px] text-slate-500">
+                Used to fetch full lead fields from Meta Graph after a leadgen webhook.
+            </p>
+        </div>
     );
 }
 

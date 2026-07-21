@@ -17,6 +17,10 @@ return Application::configure(basePath: dirname(__DIR__))
             \Illuminate\Http\Middleware\AddLinkHeadersForPreloadedAssets::class,
         ]);
 
+        $middleware->validateCsrfTokens(except: [
+            'webhooks/*',
+        ]);
+
         $middleware->alias([
             'tenant' => \App\Http\Middleware\EnsureTenantAccess::class,
             'onboarding.completed' => \App\Http\Middleware\EnsureOnboardingCompleted::class,
