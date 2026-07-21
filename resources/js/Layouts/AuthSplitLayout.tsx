@@ -114,6 +114,15 @@ export default function AuthSplitLayout({
                     <div className="rounded-2xl border border-slate-200/80 bg-white p-6 shadow-xl shadow-slate-200/50 sm:p-8">
                         {children}
                     </div>
+
+                    <p className="mt-6 text-center text-xs text-slate-400">
+                        <Link
+                            href={route('privacy-policy')}
+                            className="hover:text-emerald-700"
+                        >
+                            Privacy Policy
+                        </Link>
+                    </p>
                 </div>
             </div>
         </div>

@@ -35,4 +35,24 @@ return [
         ],
     ],
 
+    /*
+    | SaaS-level Meta app (one app for all tenants).
+    | Each company connects their own Facebook Pages via OAuth.
+    */
+    'meta' => [
+        'app_id' => env('META_APP_ID'),
+        'app_secret' => env('META_APP_SECRET'),
+        'graph_version' => env('META_GRAPH_VERSION', 'v19.0'),
+        'webhook_verify_token' => env('META_WEBHOOK_VERIFY_TOKEN', 'girafe_meta_verify'),
+        'redirect_uri' => env('META_REDIRECT_URI'), // defaults to route in service
+        'scopes' => [
+            'pages_show_list',
+            'pages_read_engagement',
+            'pages_manage_metadata',
+            'leads_retrieval',
+            'pages_manage_ads',
+            'business_management',
+        ],
+    ],
+
 ];

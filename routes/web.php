@@ -12,6 +12,7 @@ use App\Http\Controllers\Crm\EmailController;
 use App\Http\Controllers\Crm\EnquiryController;
 use App\Http\Controllers\Crm\FollowUpController;
 use App\Http\Controllers\Crm\LeadController;
+use App\Http\Controllers\Crm\MetaOAuthController;
 use App\Http\Controllers\Crm\PipelineController;
 use App\Http\Controllers\Crm\ReportController;
 use App\Http\Controllers\Crm\SettingsController;
@@ -43,6 +44,12 @@ Route::get('/', function () {
 
 Route::redirect('/signup', '/register');
 
+Route::get('/privacy-policy', function () {
+    return Inertia::render('Legal/PrivacyPolicy', [
+        'lastUpdated' => 'July 21, 2026',
+    ]);
+})->name('privacy-policy');
+
 /*
 | Team invite accept links (public — staff create their password here).
 | Registered on web.php so they are never missed by route:cache / auth grouping.
@@ -56,14 +63,19 @@ Route::post('/invites/{token}', [\App\Http\Controllers\Auth\TeamInviteController
     ->name('invites.accept');
 
 /*
-| Public lead webhooks — Meta / Google / Website / Zapier / WhatsApp
+| Public lead webhooks — Meta app (all tenants) + per-company Zapier/Google/Website
 */
+Route::get('/webhooks/meta', [LeadWebhookController::class, 'verifyMetaApp'])
+    ->name('webhooks.meta.app.verify');
+Route::post('/webhooks/meta', [LeadWebhookController::class, 'metaApp'])
+    ->name('webhooks.meta.app');
+
 Route::get('/webhooks/{companyUuid}/meta', [LeadWebhookController::class, 'verifyMeta'])
     ->name('webhooks.meta.verify');
 Route::post('/webhooks/{companyUuid}/meta', [LeadWebhookController::class, 'meta'])
     ->name('webhooks.meta');
 Route::post('/webhooks/{companyUuid}/{platform}', [LeadWebhookController::class, 'ingest'])
-    ->where('platform', 'google_ads|website|zapier|whatsapp|instagram|facebook_ads')
+    ->where('platform', 'google_ads|website|zapier|whatsapp')
     ->name('webhooks.ingest');
 
 Route::middleware(['auth', 'verified', 'tenant'])->group(function () {
@@ -113,6 +125,9 @@ Route::middleware(['auth', 'verified', 'tenant'])->group(function () {
         Route::patch('/settings/company', [SettingsController::class, 'updateCompany'])->name('settings.company');
         Route::patch('/settings/providers', [SettingsController::class, 'updateProviders'])->name('settings.providers');
         Route::patch('/settings/integrations', [SettingsController::class, 'updateIntegration'])->name('settings.integrations');
+        Route::get('/integrations/meta/connect', [MetaOAuthController::class, 'connect'])->name('integrations.meta.connect');
+        Route::get('/integrations/meta/callback', [MetaOAuthController::class, 'callback'])->name('integrations.meta.callback');
+        Route::post('/integrations/meta/disconnect', [MetaOAuthController::class, 'disconnect'])->name('integrations.meta.disconnect');
         Route::post('/settings/fields', [SettingsController::class, 'storeLeadField'])->name('settings.fields.store');
         Route::delete('/settings/fields/{field}', [SettingsController::class, 'destroyLeadField'])->name('settings.fields.destroy');
         Route::post('/settings/stages', [SettingsController::class, 'storePipelineStage'])->name('settings.stages.store');

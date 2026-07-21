@@ -120,15 +120,33 @@ class SettingsService
     public function integrationsForUi(Company $company): array
     {
         $stored = $company->settings['integrations'] ?? [];
+        $metaConnected = (bool) ($stored['meta']['connected'] ?? false);
+        $metaPages = \App\Models\MetaPage::query()
+            ->where('company_id', $company->id)
+            ->where('is_active', true)
+            ->orderBy('page_name')
+            ->get()
+            ->map(fn ($p) => [
+                'id' => $p->id,
+                'page_id' => $p->page_id,
+                'page_name' => $p->page_name,
+                'subscribed_leadgen' => $p->subscribed_leadgen,
+                'has_instagram' => filled($p->instagram_business_id),
+            ])
+            ->values()
+            ->all();
+
         $items = [];
 
         foreach (config('integrations.platforms', []) as $key => $meta) {
             $row = $stored[$key] ?? [];
+            $auth = $meta['auth'] ?? 'webhook';
             $secret = $row['webhook_secret'] ?? null;
 
-            $webhookPath = $key === 'facebook_ads' || $key === 'instagram'
-                ? "/webhooks/{$company->uuid}/meta"
-                : "/webhooks/{$company->uuid}/{$key}";
+            $webhookPath = "/webhooks/{$company->uuid}/{$key}";
+            if ($key === 'meta') {
+                $webhookPath = '/webhooks/meta';
+            }
 
             $items[] = [
                 'key' => $key,
@@ -136,12 +154,23 @@ class SettingsService
                 'description' => $meta['description'],
                 'docs' => $meta['docs'] ?? '',
                 'icon' => $meta['icon'] ?? $key,
-                'enabled' => (bool) ($row['enabled'] ?? false),
+                'auth' => $auth,
+                'enabled' => $key === 'meta'
+                    ? $metaConnected
+                    : (bool) ($row['enabled'] ?? false),
                 'webhook_url' => url($webhookPath),
-                'webhook_secret' => $secret,
+                'webhook_secret' => $auth === 'webhook' ? $secret : null,
                 'verify_token' => $row['verify_token'] ?? null,
-                'has_access_token' => ! empty($row['access_token']),
-                'connected_at' => $row['connected_at'] ?? null,
+                'has_access_token' => ! empty($row['access_token']) || ($key === 'meta' && $metaConnected),
+                'connected_at' => $key === 'meta'
+                    ? ($stored['meta']['connected_at'] ?? null)
+                    : ($row['connected_at'] ?? null),
+                'meta_pages' => $key === 'meta' ? $metaPages : [],
+                'meta_configured' => $key === 'meta'
+                    ? (filled(config('services.meta.app_id')) && filled(config('services.meta.app_secret')))
+                    : true,
+                'connect_url' => $key === 'meta' ? url('/integrations/meta/connect') : null,
+                'disconnect_url' => $key === 'meta' ? url('/integrations/meta/disconnect') : null,
             ];
         }
 

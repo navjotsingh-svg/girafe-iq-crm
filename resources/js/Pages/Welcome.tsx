@@ -1,3 +1,4 @@
+import PublicFooter from '@/Components/PublicFooter';
 import { Head, Link } from '@inertiajs/react';
 
 export default function Welcome({
@@ -154,9 +155,7 @@ export default function Welcome({
                     </div>
                 </section>
 
-                <footer className="mt-16 border-t border-slate-800 py-8 text-center text-sm text-slate-500">
-                    &copy; {new Date().getFullYear()} {appName}. {tagline}
-                </footer>
+                <PublicFooter appName={appName} tagline={tagline} />
             </div>
         </div>
     );

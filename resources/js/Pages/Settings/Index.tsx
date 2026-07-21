@@ -37,18 +37,31 @@ type Stage = {
     deals_count: number;
 };
 
+type MetaPageRow = {
+    id: number;
+    page_id: string;
+    page_name: string | null;
+    subscribed_leadgen: boolean;
+    has_instagram: boolean;
+};
+
 type IntegrationCard = {
     key: string;
     name: string;
     description: string;
     docs: string;
     icon: string;
+    auth: 'oauth' | 'webhook';
     enabled: boolean;
     webhook_url: string;
     webhook_secret: string | null;
     verify_token: string | null;
     has_access_token: boolean;
     connected_at: string | null;
+    meta_pages?: MetaPageRow[];
+    meta_configured?: boolean;
+    connect_url?: string | null;
+    disconnect_url?: string | null;
 };
 
 const TABS = [
@@ -769,6 +782,8 @@ function ProvidersTab({
 
 function IntegrationsTab({ integrations }: { integrations: IntegrationCard[] }) {
     const [copied, setCopied] = useState<string | null>(null);
+    const meta = integrations.find((i) => i.key === 'meta');
+    const others = integrations.filter((i) => i.key !== 'meta');
 
     const copyText = async (key: string, text: string) => {
         try {
@@ -788,89 +803,218 @@ function IntegrationsTab({ integrations }: { integrations: IntegrationCard[] }) 
         <div className="space-y-5">
             <div className="rounded-2xl border border-emerald-100 bg-gradient-to-br from-emerald-50 to-teal-50 p-5 dark:border-emerald-900 dark:from-emerald-950/40 dark:to-slate-900">
                 <h3 className="text-base font-bold text-slate-900 dark:text-slate-100">
-                    Sync leads from ads & forms
+                    Connect your ad accounts
                 </h3>
                 <p className="mt-1 text-sm text-slate-600 dark:text-slate-400">
-                    Enable a platform, copy its webhook URL + secret, then connect Facebook Lead Ads,
-                    Instagram, Google Ads, your website, or Zapier/Make. New leads land in{' '}
-                    <strong>Enquiries</strong> automatically.
+                    Each company connects <strong>their own</strong> Meta / Google accounts. Leads
+                    sync into <strong>Enquiries</strong> automatically — no shared credentials
+                    between tenants.
                 </p>
             </div>
 
-            <div className="grid gap-4 lg:grid-cols-2">
-                {integrations.map((item) => (
-                    <div
-                        key={item.key}
-                        className={`rounded-2xl border bg-white p-5 shadow-sm dark:bg-slate-900 ${
-                            item.enabled
-                                ? 'border-emerald-300 dark:border-emerald-700'
-                                : 'border-slate-200 dark:border-slate-800'
-                        }`}
-                    >
-                        <div className="flex items-start justify-between gap-3">
-                            <div>
-                                <div className="flex items-center gap-2">
-                                    <span className="flex h-9 w-9 items-center justify-center rounded-xl bg-slate-100 text-sm font-bold uppercase text-slate-700 dark:bg-slate-800 dark:text-slate-200">
-                                        {item.icon.slice(0, 2)}
-                                    </span>
-                                    <div>
-                                        <h4 className="font-semibold text-slate-900 dark:text-slate-100">
-                                            {item.name}
-                                        </h4>
-                                        <p className="text-xs text-slate-500">{item.description}</p>
-                                    </div>
-                                </div>
+            {meta && (
+                <div
+                    className={`rounded-2xl border bg-white p-6 shadow-sm dark:bg-slate-900 ${
+                        meta.enabled
+                            ? 'border-emerald-300 dark:border-emerald-700'
+                            : 'border-slate-200 dark:border-slate-800'
+                    }`}
+                >
+                    <div className="flex flex-wrap items-start justify-between gap-4">
+                        <div className="flex items-start gap-3">
+                            <div className="flex h-12 w-12 items-center justify-center rounded-2xl bg-[#1877F2] text-lg font-bold text-white">
+                                f
                             </div>
-                            <button
-                                type="button"
-                                onClick={() =>
-                                    save({
-                                        platform: item.key,
-                                        enabled: !item.enabled,
-                                    })
-                                }
-                                className={`relative h-7 w-12 shrink-0 rounded-full transition ${
-                                    item.enabled ? 'bg-emerald-600' : 'bg-slate-300 dark:bg-slate-700'
-                                }`}
-                                aria-label={item.enabled ? 'Disable' : 'Enable'}
-                            >
-                                <span
-                                    className={`absolute top-0.5 h-6 w-6 rounded-full bg-white shadow transition ${
-                                        item.enabled ? 'left-5' : 'left-0.5'
-                                    }`}
-                                />
-                            </button>
+                            <div>
+                                <h4 className="text-lg font-bold text-slate-900 dark:text-slate-100">
+                                    {meta.name}
+                                </h4>
+                                <p className="mt-0.5 text-sm text-slate-500">{meta.description}</p>
+                                <p className="mt-2 text-xs text-slate-500">{meta.docs}</p>
+                            </div>
                         </div>
 
-                        <p className="mt-3 text-xs leading-relaxed text-slate-500">{item.docs}</p>
+                        {meta.enabled ? (
+                            <form method="post" action={meta.disconnect_url || '#'}>
+                                <input
+                                    type="hidden"
+                                    name="_token"
+                                    value={
+                                        (document.querySelector('meta[name="csrf-token"]') as HTMLMetaElement)
+                                            ?.content || ''
+                                    }
+                                />
+                                <button
+                                    type="button"
+                                    onClick={() =>
+                                        router.post(route('integrations.meta.disconnect'), {}, {
+                                            preserveScroll: true,
+                                        })
+                                    }
+                                    className="rounded-xl border border-rose-200 px-4 py-2 text-sm font-semibold text-rose-600 hover:bg-rose-50"
+                                >
+                                    Disconnect
+                                </button>
+                            </form>
+                        ) : (
+                            <a
+                                href={
+                                    meta.meta_configured
+                                        ? route('integrations.meta.connect')
+                                        : undefined
+                                }
+                                onClick={(e) => {
+                                    if (!meta.meta_configured) {
+                                        e.preventDefault();
+                                    }
+                                }}
+                                className={`inline-flex items-center gap-2 rounded-xl px-5 py-2.5 text-sm font-semibold text-white shadow-lg shadow-blue-600/20 ${
+                                    meta.meta_configured
+                                        ? 'bg-[#1877F2] hover:bg-[#166fe5]'
+                                        : 'cursor-not-allowed bg-slate-400'
+                                }`}
+                            >
+                                <span className="text-base font-bold">f</span>
+                                Connect with Facebook
+                            </a>
+                        )}
+                    </div>
 
-                        {item.enabled && (
-                            <div className="mt-4 space-y-3 rounded-xl border border-slate-100 bg-slate-50 p-3 dark:border-slate-800 dark:bg-slate-950/50">
-                                <div>
-                                    <div className="mb-1 flex items-center justify-between">
-                                        <span className="text-xs font-semibold uppercase tracking-wide text-slate-500">
-                                            Webhook URL
-                                        </span>
-                                        <button
-                                            type="button"
-                                            onClick={() => copyText(`${item.key}-url`, item.webhook_url)}
-                                            className="text-xs font-semibold text-emerald-600 hover:underline"
-                                        >
-                                            {copied === `${item.key}-url` ? 'Copied' : 'Copy'}
-                                        </button>
+                    {!meta.meta_configured && (
+                        <div className="mt-4 rounded-xl border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-900 dark:border-amber-900 dark:bg-amber-950/40 dark:text-amber-100">
+                            Platform admin must set <code>META_APP_ID</code> and{' '}
+                            <code>META_APP_SECRET</code> in the server <code>.env</code> before
+                            tenants can connect.
+                        </div>
+                    )}
+
+                    {meta.enabled && (
+                        <div className="mt-5 space-y-3">
+                            <div className="flex items-center gap-2 text-sm text-emerald-700 dark:text-emerald-300">
+                                <span className="h-2 w-2 rounded-full bg-emerald-500" />
+                                Connected
+                                {meta.connected_at
+                                    ? ` · ${new Date(meta.connected_at).toLocaleString()}`
+                                    : ''}
+                            </div>
+
+                            {(meta.meta_pages?.length ?? 0) > 0 ? (
+                                <div className="overflow-hidden rounded-xl border border-slate-200 dark:border-slate-800">
+                                    <div className="bg-slate-50 px-4 py-2 text-xs font-semibold uppercase tracking-wide text-slate-500 dark:bg-slate-800/50">
+                                        Linked Facebook Pages
                                     </div>
-                                    <code className="block break-all rounded-lg bg-white px-2.5 py-2 text-[11px] text-slate-700 ring-1 ring-slate-200 dark:bg-slate-900 dark:text-slate-300 dark:ring-slate-700">
-                                        {item.webhook_url}
-                                    </code>
+                                    <ul className="divide-y divide-slate-100 dark:divide-slate-800">
+                                        {meta.meta_pages!.map((page) => (
+                                            <li
+                                                key={page.id}
+                                                className="flex flex-wrap items-center justify-between gap-2 px-4 py-3 text-sm"
+                                            >
+                                                <div>
+                                                    <div className="font-medium">{page.page_name}</div>
+                                                    <div className="text-xs text-slate-500">
+                                                        Page ID {page.page_id}
+                                                        {page.has_instagram ? ' · Instagram linked' : ''}
+                                                    </div>
+                                                </div>
+                                                <span
+                                                    className={`rounded-full px-2 py-0.5 text-xs font-medium ${
+                                                        page.subscribed_leadgen
+                                                            ? 'bg-emerald-100 text-emerald-800'
+                                                            : 'bg-amber-100 text-amber-800'
+                                                    }`}
+                                                >
+                                                    {page.subscribed_leadgen
+                                                        ? 'Lead Ads subscribed'
+                                                        : 'Pending subscribe'}
+                                                </span>
+                                            </li>
+                                        ))}
+                                    </ul>
                                 </div>
+                            ) : (
+                                <p className="text-sm text-slate-500">
+                                    No Pages found. Reconnect with a Meta user that manages a Page.
+                                </p>
+                            )}
+                        </div>
+                    )}
+                </div>
+            )}
 
-                                {item.webhook_secret && (
+            <div>
+                <h4 className="mb-3 text-sm font-semibold text-slate-700 dark:text-slate-200">
+                    Other lead sources (webhook)
+                </h4>
+                <div className="grid gap-4 lg:grid-cols-2">
+                    {others.map((item) => (
+                        <div
+                            key={item.key}
+                            className={`rounded-2xl border bg-white p-5 shadow-sm dark:bg-slate-900 ${
+                                item.enabled
+                                    ? 'border-emerald-300 dark:border-emerald-700'
+                                    : 'border-slate-200 dark:border-slate-800'
+                            }`}
+                        >
+                            <div className="flex items-start justify-between gap-3">
+                                <div>
+                                    <h4 className="font-semibold text-slate-900 dark:text-slate-100">
+                                        {item.name}
+                                    </h4>
+                                    <p className="text-xs text-slate-500">{item.description}</p>
+                                </div>
+                                <button
+                                    type="button"
+                                    onClick={() =>
+                                        save({
+                                            platform: item.key,
+                                            enabled: !item.enabled,
+                                        })
+                                    }
+                                    className={`relative h-7 w-12 shrink-0 rounded-full transition ${
+                                        item.enabled
+                                            ? 'bg-emerald-600'
+                                            : 'bg-slate-300 dark:bg-slate-700'
+                                    }`}
+                                    aria-label={item.enabled ? 'Disable' : 'Enable'}
+                                >
+                                    <span
+                                        className={`absolute top-0.5 h-6 w-6 rounded-full bg-white shadow transition ${
+                                            item.enabled ? 'left-5' : 'left-0.5'
+                                        }`}
+                                    />
+                                </button>
+                            </div>
+
+                            <p className="mt-3 text-xs leading-relaxed text-slate-500">{item.docs}</p>
+
+                            {item.enabled && (
+                                <div className="mt-4 space-y-3 rounded-xl border border-slate-100 bg-slate-50 p-3 dark:border-slate-800 dark:bg-slate-950/50">
                                     <div>
                                         <div className="mb-1 flex items-center justify-between">
                                             <span className="text-xs font-semibold uppercase tracking-wide text-slate-500">
-                                                Webhook secret
+                                                Your webhook URL
                                             </span>
-                                            <div className="flex gap-2">
+                                            <button
+                                                type="button"
+                                                onClick={() =>
+                                                    copyText(`${item.key}-url`, item.webhook_url)
+                                                }
+                                                className="text-xs font-semibold text-emerald-600 hover:underline"
+                                            >
+                                                {copied === `${item.key}-url` ? 'Copied' : 'Copy'}
+                                            </button>
+                                        </div>
+                                        <code className="block break-all rounded-lg bg-white px-2.5 py-2 text-[11px] text-slate-700 ring-1 ring-slate-200 dark:bg-slate-900 dark:text-slate-300 dark:ring-slate-700">
+                                            {item.webhook_url}
+                                        </code>
+                                    </div>
+
+                                    {item.webhook_secret && (
+                                        <div>
+                                            <div className="mb-1 flex items-center justify-between">
+                                                <span className="text-xs font-semibold uppercase tracking-wide text-slate-500">
+                                                    Secret
+                                                </span>
                                                 <button
                                                     type="button"
                                                     onClick={() =>
@@ -885,137 +1029,18 @@ function IntegrationsTab({ integrations }: { integrations: IntegrationCard[] }) 
                                                         ? 'Copied'
                                                         : 'Copy'}
                                                 </button>
-                                                <button
-                                                    type="button"
-                                                    onClick={() =>
-                                                        save({
-                                                            platform: item.key,
-                                                            enabled: true,
-                                                            regenerate_secret: true,
-                                                        })
-                                                    }
-                                                    className="text-xs font-semibold text-slate-500 hover:underline"
-                                                >
-                                                    Rotate
-                                                </button>
-                                            </div>
-                                        </div>
-                                        <code className="block break-all rounded-lg bg-white px-2.5 py-2 text-[11px] text-slate-700 ring-1 ring-slate-200 dark:bg-slate-900 dark:text-slate-300 dark:ring-slate-700">
-                                            {item.webhook_secret}
-                                        </code>
-                                        <p className="mt-1 text-[11px] text-slate-500">
-                                            Send as header <code>X-Webhook-Secret</code> or query{' '}
-                                            <code>?secret=…</code>
-                                        </p>
-                                    </div>
-                                )}
-
-                                {(item.key === 'facebook_ads' || item.key === 'instagram') &&
-                                    item.verify_token && (
-                                        <div>
-                                            <div className="mb-1 flex items-center justify-between">
-                                                <span className="text-xs font-semibold uppercase tracking-wide text-slate-500">
-                                                    Meta verify token
-                                                </span>
-                                                <button
-                                                    type="button"
-                                                    onClick={() =>
-                                                        copyText(
-                                                            `${item.key}-verify`,
-                                                            item.verify_token || '',
-                                                        )
-                                                    }
-                                                    className="text-xs font-semibold text-emerald-600 hover:underline"
-                                                >
-                                                    {copied === `${item.key}-verify`
-                                                        ? 'Copied'
-                                                        : 'Copy'}
-                                                </button>
                                             </div>
                                             <code className="block break-all rounded-lg bg-white px-2.5 py-2 text-[11px] text-slate-700 ring-1 ring-slate-200 dark:bg-slate-900 dark:text-slate-300 dark:ring-slate-700">
-                                                {item.verify_token}
+                                                {item.webhook_secret}
                                             </code>
                                         </div>
                                     )}
-
-                                {(item.key === 'facebook_ads' || item.key === 'instagram') && (
-                                    <MetaTokenForm
-                                        platform={item.key}
-                                        hasToken={item.has_access_token}
-                                        onSave={(token) =>
-                                            save({
-                                                platform: item.key,
-                                                enabled: true,
-                                                access_token: token,
-                                            })
-                                        }
-                                    />
-                                )}
-
-                                <div className="rounded-lg bg-white/80 px-3 py-2 text-[11px] text-slate-600 ring-1 ring-slate-200 dark:bg-slate-900 dark:text-slate-400 dark:ring-slate-700">
-                                    <strong>Example JSON body:</strong>
-                                    <pre className="mt-1 overflow-x-auto whitespace-pre-wrap">{`{
-  "name": "Riya Patel",
-  "email": "riya@example.com",
-  "phone": "+9198xxxxxxx",
-  "message": "Interested in 2BHK",
-  "external_id": "optional-unique-id"
-}`}</pre>
                                 </div>
-                            </div>
-                        )}
-                    </div>
-                ))}
+                            )}
+                        </div>
+                    ))}
+                </div>
             </div>
-        </div>
-    );
-}
-
-function MetaTokenForm({
-    platform,
-    hasToken,
-    onSave,
-}: {
-    platform: string;
-    hasToken: boolean;
-    onSave: (token: string) => void;
-}) {
-    const [token, setToken] = useState('');
-
-    return (
-        <div>
-            <InputLabel
-                htmlFor={`${platform}-access-token`}
-                value={
-                    hasToken
-                        ? 'Meta Page access token (leave blank to keep)'
-                        : 'Meta Page access token (optional)'
-                }
-            />
-            <div className="mt-1 flex gap-2">
-                <TextInput
-                    id={`${platform}-access-token`}
-                    type="password"
-                    value={token}
-                    className={fieldClass + ' flex-1'}
-                    placeholder="EAAB…"
-                    onChange={(e) => setToken(e.target.value)}
-                />
-                <button
-                    type="button"
-                    disabled={!token}
-                    onClick={() => {
-                        onSave(token);
-                        setToken('');
-                    }}
-                    className="rounded-xl bg-slate-900 px-3 py-2 text-xs font-semibold text-white disabled:opacity-40 dark:bg-emerald-600"
-                >
-                    Save
-                </button>
-            </div>
-            <p className="mt-1 text-[11px] text-slate-500">
-                Used to fetch full lead fields from Meta Graph after a leadgen webhook.
-            </p>
         </div>
     );
 }

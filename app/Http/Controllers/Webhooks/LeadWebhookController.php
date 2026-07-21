@@ -4,6 +4,7 @@ namespace App\Http\Controllers\Webhooks;
 
 use App\Http\Controllers\Controller;
 use App\Models\Company;
+use App\Models\MetaPage;
 use App\Services\Crm\LeadIngestService;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
@@ -16,7 +17,85 @@ use Throwable;
 class LeadWebhookController extends Controller
 {
     /**
-     * Meta (Facebook / Instagram) webhook verification (GET).
+     * Global Meta app webhook verification (one URL for all SaaS tenants).
+     */
+    public function verifyMetaApp(Request $request): Response|JsonResponse
+    {
+        $mode = $request->query('hub_mode');
+        $token = $request->query('hub_verify_token');
+        $challenge = $request->query('hub_challenge');
+        $expected = config('services.meta.webhook_verify_token');
+
+        if ($mode === 'subscribe' && $expected && hash_equals((string) $expected, (string) $token)) {
+            return response((string) $challenge, 200)->header('Content-Type', 'text/plain');
+        }
+
+        return response()->json(['error' => 'Verification failed'], 403);
+    }
+
+    /**
+     * Global Meta leadgen webhook — routes to the company that owns the Page.
+     */
+    public function metaApp(Request $request, LeadIngestService $ingest): JsonResponse
+    {
+        $created = 0;
+
+        foreach ($request->input('entry', []) as $entry) {
+            $pageId = (string) ($entry['id'] ?? '');
+
+            foreach (Arr::get($entry, 'changes', []) as $change) {
+                if (($change['field'] ?? '') !== 'leadgen') {
+                    continue;
+                }
+
+                $value = $change['value'] ?? [];
+                $pageId = (string) ($value['page_id'] ?? $pageId);
+                $leadgenId = (string) ($value['leadgen_id'] ?? '');
+
+                if ($pageId === '' || $leadgenId === '') {
+                    continue;
+                }
+
+                $metaPage = MetaPage::query()
+                    ->where('page_id', $pageId)
+                    ->where('is_active', true)
+                    ->with('company')
+                    ->first();
+
+                if (! $metaPage || ! $metaPage->company) {
+                    Log::info('Meta leadgen for unknown page', ['page_id' => $pageId]);
+
+                    continue;
+                }
+
+                $company = $metaPage->company;
+                $mapped = $this->fetchMetaLead($metaPage, $leadgenId) ?? [
+                    'name' => 'Facebook Lead',
+                    'email' => null,
+                    'phone' => null,
+                    'message' => 'Lead form submission from Meta',
+                    'external_id' => $leadgenId,
+                ];
+
+                $platform = $metaPage->instagram_business_id ? 'instagram' : 'facebook_ads';
+                // Prefer facebook_ads source; Instagram forms still map via platform field
+                if (! empty($value['partner_name']) && str_contains(strtolower((string) $value['partner_name']), 'instagram')) {
+                    $platform = 'instagram';
+                }
+
+                $ingest->ingest($company, $platform, $mapped, [
+                    'page_id' => $pageId,
+                    'leadgen' => $value,
+                ]);
+                $created++;
+            }
+        }
+
+        return response()->json(['ok' => true, 'created' => $created]);
+    }
+
+    /**
+     * Legacy per-company Meta webhook (still supported).
      */
     public function verifyMeta(Request $request, string $companyUuid): Response|JsonResponse
     {
@@ -27,7 +106,8 @@ class LeadWebhookController extends Controller
         $token = $request->query('hub_verify_token');
         $challenge = $request->query('hub_challenge');
 
-        $expected = $config['verify_token'] ?? $config['webhook_secret'] ?? null;
+        $expected = $config['verify_token']
+            ?? config('services.meta.webhook_verify_token');
 
         if ($mode === 'subscribe' && $expected && hash_equals((string) $expected, (string) $token)) {
             return response((string) $challenge, 200)->header('Content-Type', 'text/plain');
@@ -36,68 +116,24 @@ class LeadWebhookController extends Controller
         return response()->json(['error' => 'Verification failed'], 403);
     }
 
-    /**
-     * Meta Lead Ads webhook (POST) — stores leadgen notifications / field data.
-     */
     public function meta(Request $request, string $companyUuid, LeadIngestService $ingest): JsonResponse
     {
-        $company = $this->findCompany($companyUuid);
-        $this->assertEnabled($company, 'facebook_ads');
-        $this->assertSecret($request, $company, 'facebook_ads');
-
-        $entries = $request->input('entry', []);
-        $created = 0;
-
-        foreach ($entries as $entry) {
-            foreach (Arr::get($entry, 'changes', []) as $change) {
-                if (($change['field'] ?? '') !== 'leadgen') {
-                    continue;
-                }
-
-                $value = $change['value'] ?? [];
-                $leadgenId = (string) ($value['leadgen_id'] ?? '');
-                if ($leadgenId === '') {
-                    continue;
-                }
-
-                $mapped = $this->fetchMetaLead($company, $leadgenId)
-                    ?? [
-                        'name' => 'Facebook Lead',
-                        'email' => null,
-                        'phone' => $value['phone_number'] ?? null,
-                        'message' => 'Lead form submission from Facebook/Instagram',
-                        'external_id' => $leadgenId,
-                    ];
-
-                $platform = str_contains(strtolower((string) ($value['partner_name'] ?? '')), 'instagram')
-                    ? 'instagram'
-                    : 'facebook_ads';
-
-                if ($platform === 'instagram') {
-                    $this->assertEnabled($company, 'instagram');
-                }
-
-                $ingest->ingest($company, $platform, $mapped, $request->all());
-                $created++;
-            }
-        }
-
-        // Also accept direct JSON lead posts (Zapier → Meta style)
-        if ($created === 0 && ($request->filled('name') || $request->filled('email') || $request->filled('phone'))) {
-            $ingest->ingest($company, 'facebook_ads', $this->normalizeGeneric($request->all()), $request->all());
-            $created = 1;
-        }
-
-        return response()->json(['ok' => true, 'created' => $created]);
+        // Prefer global routing; still accept posts to company URL
+        return $this->metaApp($request, $ingest);
     }
 
     /**
-     * Generic platform webhook: google_ads, website, zapier, whatsapp, instagram.
+     * Generic platform webhook: google_ads, website, zapier, whatsapp, etc.
      */
     public function ingest(Request $request, string $companyUuid, string $platform, LeadIngestService $ingest): JsonResponse
     {
         if (! array_key_exists($platform, config('integrations.platforms', []))) {
             return response()->json(['error' => 'Unknown platform'], 404);
+        }
+
+        // "meta" uses OAuth, not this generic webhook
+        if ($platform === 'meta') {
+            return response()->json(['error' => 'Use Meta OAuth connect + /webhooks/meta'], 400);
         }
 
         $company = $this->findCompany($companyUuid);
@@ -154,7 +190,7 @@ class LeadWebhookController extends Controller
 
     /**
      * @param  array<string, mixed>  $data
-     * @return array{name?: string, email?: string|null, phone?: string|null, message?: string|null, external_id?: string|null}
+     * @return array{name?: string|null, email?: string|null, phone?: string|null, message?: string|null, external_id?: string|null}
      */
     private function normalizeGeneric(array $data): array
     {
@@ -178,24 +214,13 @@ class LeadWebhookController extends Controller
     /**
      * @return array{name?: string, email?: string|null, phone?: string|null, message?: string|null, external_id: string}|null
      */
-    private function fetchMetaLead(Company $company, string $leadgenId): ?array
+    private function fetchMetaLead(MetaPage $page, string $leadgenId): ?array
     {
-        $token = $company->settings['integrations']['facebook_ads']['access_token']
-            ?? $company->settings['providers']['whatsapp']['api_token']
-            ?? null;
-
-        if (! $token) {
-            return [
-                'name' => 'Facebook Lead',
-                'email' => null,
-                'phone' => null,
-                'message' => 'Leadgen ID '.$leadgenId.' (add Meta access token to fetch full fields)',
-                'external_id' => $leadgenId,
-            ];
-        }
+        $version = config('services.meta.graph_version', 'v19.0');
+        $token = $page->page_access_token;
 
         try {
-            $response = Http::timeout(15)->get("https://graph.facebook.com/v19.0/{$leadgenId}", [
+            $response = Http::timeout(15)->get("https://graph.facebook.com/{$version}/{$leadgenId}", [
                 'access_token' => $token,
                 'fields' => 'created_time,field_data',
             ]);
@@ -206,7 +231,13 @@ class LeadWebhookController extends Controller
                     'status' => $response->status(),
                 ]);
 
-                return null;
+                return [
+                    'name' => 'Facebook Lead',
+                    'email' => null,
+                    'phone' => null,
+                    'message' => 'Leadgen '.$leadgenId,
+                    'external_id' => $leadgenId,
+                ];
             }
 
             $fields = collect($response->json('field_data', []));
