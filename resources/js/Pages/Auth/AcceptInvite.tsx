@@ -3,7 +3,7 @@ import InputLabel from '@/Components/InputLabel';
 import PrimaryButton from '@/Components/PrimaryButton';
 import TextInput from '@/Components/TextInput';
 import GuestLayout from '@/Layouts/GuestLayout';
-import { Head, useForm } from '@inertiajs/react';
+import { Head, Link, useForm } from '@inertiajs/react';
 import { FormEventHandler } from 'react';
 
 type Invitation = {
@@ -18,36 +18,69 @@ type Invitation = {
 export default function AcceptInvite({
     token,
     invitation,
+    status = 'ok',
+    message = null,
 }: {
     token: string;
-    invitation: Invitation;
+    invitation: Invitation | null;
+    status?: 'ok' | 'invalid' | 'expired' | 'unavailable';
+    message?: string | null;
 }) {
     const { data, setData, post, processing, errors } = useForm({
-        name: invitation.name,
+        name: invitation?.name ?? '',
         password: '',
         password_confirmation: '',
     });
 
     const submit: FormEventHandler = (e) => {
         e.preventDefault();
-        post(route('invites.accept', token));
+        post(`/invites/${token}`);
     };
+
+    if (status !== 'ok' || !invitation) {
+        return (
+            <GuestLayout>
+                <Head title="Invite unavailable" />
+                <div className="text-center">
+                    <div className="mx-auto flex h-14 w-14 items-center justify-center rounded-2xl bg-rose-50 text-2xl text-rose-600">
+                        !
+                    </div>
+                    <h1 className="mt-4 text-lg font-semibold text-slate-900">
+                        {status === 'expired' ? 'Invite expired' : 'Invite not found'}
+                    </h1>
+                    <p className="mt-2 text-sm text-slate-600">
+                        {message ??
+                            'This invite link is invalid or no longer available. Ask your admin to send a new one.'}
+                    </p>
+                    <Link
+                        href="/login"
+                        className="mt-6 inline-flex rounded-xl bg-emerald-600 px-4 py-2.5 text-sm font-semibold text-white hover:bg-emerald-500"
+                    >
+                        Go to login
+                    </Link>
+                </div>
+            </GuestLayout>
+        );
+    }
 
     return (
         <GuestLayout>
             <Head title="Accept invite" />
 
             <div className="mb-6">
-                <h1 className="text-lg font-semibold text-slate-900">Join the team</h1>
-                <p className="mt-1 text-sm text-slate-600">
+                <p className="text-xs font-semibold uppercase tracking-[0.18em] text-emerald-600">
+                    Team invite
+                </p>
+                <h1 className="mt-1 text-xl font-bold text-slate-900">Join the team</h1>
+                <p className="mt-2 text-sm leading-relaxed text-slate-600">
                     {invitation.inviter ?? 'An admin'} invited you to{' '}
-                    <span className="font-medium">{invitation.company}</span> as{' '}
-                    <span className="font-medium">{invitation.role}</span>. Create your
-                    password to get started.
+                    <span className="font-semibold text-slate-800">{invitation.company}</span> as{' '}
+                    <span className="font-semibold text-slate-800">{invitation.role}</span>. Create
+                    your password to get started.
                 </p>
             </div>
 
-            <form onSubmit={submit}>
+            <form onSubmit={submit} className="space-y-4">
                 <div>
                     <InputLabel htmlFor="email" value="Email" />
                     <TextInput
@@ -59,7 +92,7 @@ export default function AcceptInvite({
                     />
                 </div>
 
-                <div className="mt-4">
+                <div>
                     <InputLabel htmlFor="name" value="Your name" />
                     <TextInput
                         id="name"
@@ -74,7 +107,7 @@ export default function AcceptInvite({
                     <InputError message={errors.name} className="mt-2" />
                 </div>
 
-                <div className="mt-4">
+                <div>
                     <InputLabel htmlFor="password" value="Create password" />
                     <TextInput
                         id="password"
@@ -89,7 +122,7 @@ export default function AcceptInvite({
                     <InputError message={errors.password} className="mt-2" />
                 </div>
 
-                <div className="mt-4">
+                <div>
                     <InputLabel htmlFor="password_confirmation" value="Confirm password" />
                     <TextInput
                         id="password_confirmation"
@@ -104,8 +137,10 @@ export default function AcceptInvite({
                     <InputError message={errors.password_confirmation} className="mt-2" />
                 </div>
 
-                <div className="mt-6 flex items-center justify-end">
-                    <PrimaryButton disabled={processing}>Create account & join</PrimaryButton>
+                <div className="pt-2">
+                    <PrimaryButton className="w-full justify-center" disabled={processing}>
+                        {processing ? 'Creating account…' : 'Create account & join'}
+                    </PrimaryButton>
                 </div>
             </form>
         </GuestLayout>

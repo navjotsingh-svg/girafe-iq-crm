@@ -68,7 +68,7 @@ class TeamInvitation extends Model
 
     public function acceptUrl(): string
     {
-        return url('/invites/'.$this->token);
+        return route('invites.show', ['token' => $this->token]);
     }
 
     public function roleLabel(): string

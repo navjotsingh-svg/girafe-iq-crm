@@ -42,6 +42,18 @@ Route::get('/', function () {
 
 Route::redirect('/signup', '/register');
 
+/*
+| Team invite accept links (public — staff create their password here).
+| Registered on web.php so they are never missed by route:cache / auth grouping.
+*/
+Route::get('/invites/{token}', [\App\Http\Controllers\Auth\TeamInviteController::class, 'show'])
+    ->where('token', '[A-Za-z0-9]+')
+    ->name('invites.show');
+
+Route::post('/invites/{token}', [\App\Http\Controllers\Auth\TeamInviteController::class, 'store'])
+    ->where('token', '[A-Za-z0-9]+')
+    ->name('invites.accept');
+
 Route::middleware(['auth', 'verified', 'tenant'])->group(function () {
     Route::prefix('onboarding')->name('onboarding.')->group(function () {
         Route::get('/', [OnboardingController::class, 'show'])->name('show');
