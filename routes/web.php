@@ -79,6 +79,7 @@ Route::middleware(['auth', 'verified', 'tenant'])->group(function () {
 
         Route::get('/team', [TeamController::class, 'index'])->name('team.index');
         Route::post('/team', [TeamController::class, 'store'])->name('team.store');
+        Route::delete('/team/invites/{invitation}', [TeamController::class, 'cancelInvite'])->name('team.invites.cancel');
         Route::patch('/team/{member}/role', [TeamController::class, 'updateRole'])->name('team.update-role');
         Route::post('/team/{member}/toggle-active', [TeamController::class, 'toggleActive'])->name('team.toggle-active');
 

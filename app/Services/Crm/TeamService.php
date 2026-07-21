@@ -4,12 +4,13 @@ namespace App\Services\Crm;
 
 use App\Mail\TeamInviteMail;
 use App\Models\Company;
+use App\Models\TeamInvitation;
 use App\Models\User;
 use App\Services\Tenant\ActivityLogger;
-use Illuminate\Support\Facades\Hash;
+use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Facades\Mail;
-use Illuminate\Support\Str;
+use Illuminate\Validation\ValidationException;
 use Spatie\Permission\Models\Role;
 use Spatie\Permission\PermissionRegistrar;
 use Throwable;
@@ -21,74 +22,145 @@ class TeamService
     ) {}
 
     /**
+     * Invite staff by email. Invitee sets their own password via the link.
+     *
      * @param  array<string, mixed>  $data
-     * @return array{user: User, temporary_password: string, email_sent: bool}
+     * @return array{invitation: TeamInvitation, email_sent: bool}
      */
     public function invite(Company $company, User $inviter, array $data): array
     {
         app(PermissionRegistrar::class)->setPermissionsTeamId($company->id);
 
-        $temporaryPassword = Str::password(12);
+        $roleName = $this->normalizeRole($data['role'] ?? 'sales_executive');
 
-        $user = User::create([
+        // Replace any previous pending invite for this email in this company
+        TeamInvitation::query()
+            ->where('company_id', $company->id)
+            ->where('email', $data['email'])
+            ->whereNull('accepted_at')
+            ->delete();
+
+        $invitation = TeamInvitation::create([
             'company_id' => $company->id,
+            'invited_by' => $inviter->id,
             'name' => $data['name'],
             'email' => $data['email'],
             'phone' => $data['phone'] ?? null,
-            'password' => Hash::make($temporaryPassword),
-            'is_active' => true,
-            'email_verified_at' => now(),
+            'role' => $roleName,
+            'expires_at' => now()->addDays(7),
         ]);
 
-        $roleName = $data['role'] ?? 'sales_executive';
-        $allowed = collect(config('permissions.roles', []))
-            ->reject(fn ($r) => $r === 'super_admin')
-            ->all();
+        $invitation->setRelation('company', $company);
+        $invitation->setRelation('inviter', $inviter);
 
-        if (! in_array($roleName, $allowed, true)) {
-            $roleName = 'sales_executive';
-        }
+        $emailSent = $this->sendInviteEmail($invitation);
 
-        $role = Role::findOrCreate($roleName, 'web');
-        $user->assignRole($role);
-        $user->setRelation('company', $company);
-
-        $emailSent = $this->sendInviteEmail($user, $inviter, $roleName, $temporaryPassword);
-
-        $this->logger->log('team.member_invited', $user, [
+        $this->logger->log('team.member_invited', $company, [
             'role' => $roleName,
             'invited_by' => $inviter->id,
+            'email' => $invitation->email,
+            'invitation_id' => $invitation->id,
             'email_sent' => $emailSent,
         ]);
 
         return [
-            'user' => $user,
-            'temporary_password' => $temporaryPassword,
+            'invitation' => $invitation,
             'email_sent' => $emailSent,
         ];
     }
 
-    private function sendInviteEmail(
-        User $invitee,
-        User $inviter,
-        string $roleName,
-        string $temporaryPassword,
-    ): bool {
+    /**
+     * Accept invite: create staff user under the admin's company with chosen password.
+     *
+     * @param  array{password: string, name?: string}  $data
+     */
+    public function accept(TeamInvitation $invitation, array $data): User
+    {
+        if (! $invitation->isPending()) {
+            throw ValidationException::withMessages([
+                'token' => $invitation->accepted_at
+                    ? 'This invitation has already been accepted.'
+                    : 'This invitation has expired. Ask your admin to send a new one.',
+            ]);
+        }
+
+        if (User::query()->where('email', $invitation->email)->exists()) {
+            throw ValidationException::withMessages([
+                'email' => 'An account with this email already exists. Please log in instead.',
+            ]);
+        }
+
+        return DB::transaction(function () use ($invitation, $data) {
+            $company = $invitation->company;
+            app(PermissionRegistrar::class)->setPermissionsTeamId($company->id);
+
+            $user = User::create([
+                'company_id' => $company->id,
+                'name' => $data['name'] ?? $invitation->name,
+                'email' => $invitation->email,
+                'phone' => $invitation->phone,
+                'password' => $data['password'],
+                'is_active' => true,
+                'email_verified_at' => now(),
+            ]);
+
+            $role = Role::findOrCreate($invitation->role, 'web');
+            $user->assignRole($role);
+
+            $invitation->update(['accepted_at' => now()]);
+
+            $this->logger->log('team.invite_accepted', $user, [
+                'role' => $invitation->role,
+                'invitation_id' => $invitation->id,
+                'company_id' => $company->id,
+            ]);
+
+            return $user->fresh();
+        });
+    }
+
+    public function cancelInvitation(TeamInvitation $invitation, Company $company): void
+    {
+        if ($invitation->company_id !== $company->id) {
+            abort(403);
+        }
+
+        if ($invitation->accepted_at) {
+            abort(422, 'Invitation already accepted.');
+        }
+
+        $invitation->delete();
+
+        $this->logger->log('team.invite_cancelled', $company, [
+            'email' => $invitation->email,
+            'invitation_id' => $invitation->id,
+        ]);
+    }
+
+    private function sendInviteEmail(TeamInvitation $invitation): bool
+    {
         try {
-            Mail::to($invitee->email)->send(
-                new TeamInviteMail($invitee, $inviter, $roleName, $temporaryPassword)
-            );
+            Mail::to($invitation->email)->send(new TeamInviteMail($invitation));
 
             return true;
         } catch (Throwable $e) {
             Log::warning('Failed to send team invite email', [
-                'user_id' => $invitee->id,
-                'email' => $invitee->email,
+                'invitation_id' => $invitation->id,
+                'email' => $invitation->email,
                 'error' => $e->getMessage(),
             ]);
 
             return false;
         }
+    }
+
+    private function normalizeRole(string $roleName): string
+    {
+        $allowed = collect(config('permissions.roles', []))
+            ->reject(fn ($r) => $r === 'super_admin')
+            ->all();
+
+        return in_array($roleName, $allowed, true) ? $roleName : 'sales_executive';
     }
 
     public function updateRole(User $member, Company $company, string $roleName): User

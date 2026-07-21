@@ -2,7 +2,7 @@
 
 namespace App\Mail;
 
-use App\Models\User;
+use App\Models\TeamInvitation;
 use Illuminate\Bus\Queueable;
 use Illuminate\Mail\Mailable;
 use Illuminate\Mail\Mailables\Content;
@@ -13,16 +13,11 @@ class TeamInviteMail extends Mailable
 {
     use Queueable, SerializesModels;
 
-    public function __construct(
-        public User $invitee,
-        public User $inviter,
-        public string $role,
-        public string $temporaryPassword,
-    ) {}
+    public function __construct(public TeamInvitation $invitation) {}
 
     public function envelope(): Envelope
     {
-        $companyName = $this->invitee->company?->name ?? config('girafe.name', config('app.name'));
+        $companyName = $this->invitation->company?->name ?? config('girafe.name', config('app.name'));
 
         return new Envelope(
             subject: "You're invited to join {$companyName}",
@@ -31,19 +26,19 @@ class TeamInviteMail extends Mailable
 
     public function content(): Content
     {
-        $roleLabel = str_replace('_', ' ', ucwords($this->role, '_'));
+        $invitation = $this->invitation->loadMissing(['company', 'inviter']);
 
         return new Content(
             markdown: 'emails.team-invite',
             with: [
-                'inviteeName' => $this->invitee->name,
-                'inviterName' => $this->inviter->name,
-                'companyName' => $this->invitee->company?->name ?? 'the team',
-                'roleLabel' => $roleLabel,
-                'email' => $this->invitee->email,
-                'temporaryPassword' => $this->temporaryPassword,
+                'inviteeName' => $invitation->name,
+                'inviterName' => $invitation->inviter?->name ?? 'Your admin',
+                'companyName' => $invitation->company?->name ?? 'the team',
+                'roleLabel' => $invitation->roleLabel(),
+                'email' => $invitation->email,
                 'appName' => config('girafe.name', config('app.name')),
-                'loginUrl' => url('/login'),
+                'acceptUrl' => $invitation->acceptUrl(),
+                'expiresAt' => $invitation->expires_at?->timezone(config('app.timezone'))->format('M j, Y'),
             ],
         );
     }

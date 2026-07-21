@@ -74,6 +74,11 @@ class Company extends Model
         return $this->hasMany(User::class);
     }
 
+    public function teamInvitations(): HasMany
+    {
+        return $this->hasMany(TeamInvitation::class);
+    }
+
     public function leadStatuses(): HasMany
     {
         return $this->hasMany(LeadStatus::class);

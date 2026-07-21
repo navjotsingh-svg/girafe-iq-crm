@@ -3,18 +3,19 @@
 
 **{{ $inviterName }}** invited you to join **{{ $companyName }}** on {{ $appName }} as **{{ $roleLabel }}**.
 
-Use these credentials to sign in:
+Click the button below to create your password and join the team. You'll work under this company account as staff.
 
 <x-mail::panel>
 **Email:** {{ $email }}  
-**Temporary password:** {{ $temporaryPassword }}
+**Role:** {{ $roleLabel }}  
+**Link expires:** {{ $expiresAt }}
 </x-mail::panel>
 
-Please change your password after your first login.
-
-<x-mail::button :url="$loginUrl">
-Sign in
+<x-mail::button :url="$acceptUrl">
+Create password & join
 </x-mail::button>
+
+If the button doesn't work, open this link: [{{ $acceptUrl }}]({{ $acceptUrl }})
 
 Thanks,<br>
 {{ $appName }}

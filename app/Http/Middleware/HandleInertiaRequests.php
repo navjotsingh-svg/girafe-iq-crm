@@ -47,8 +47,7 @@ class HandleInertiaRequests extends Middleware
             'flash' => [
                 'success' => fn () => $request->session()->get('success'),
                 'error' => fn () => $request->session()->get('error'),
-                'invite_password' => fn () => $request->session()->get('invite_password'),
-                'invite_email' => fn () => $request->session()->get('invite_email'),
+                'status' => fn () => $request->session()->get('status'),
                 'import_errors' => fn () => $request->session()->get('import_errors'),
             ],
         ];
