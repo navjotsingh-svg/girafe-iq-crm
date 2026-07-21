@@ -58,19 +58,28 @@ class TeamController extends Controller
                 ];
             });
 
-        $pendingInvites = TeamInvitation::query()
-            ->where('company_id', $company->id)
-            ->pending()
-            ->orderByDesc('created_at')
-            ->get()
-            ->map(fn (TeamInvitation $invite) => [
-                'id' => $invite->id,
-                'name' => $invite->name,
-                'email' => $invite->email,
-                'role' => $invite->role,
-                'role_label' => $invite->roleLabel(),
-                'expires_at' => $invite->expires_at?->toDateString(),
-            ]);
+        $pendingInvites = collect();
+
+        try {
+            $pendingInvites = TeamInvitation::query()
+                ->where('company_id', $company->id)
+                ->pending()
+                ->orderByDesc('created_at')
+                ->get()
+                ->map(fn (TeamInvitation $invite) => [
+                    'id' => $invite->id,
+                    'name' => $invite->name,
+                    'email' => $invite->email,
+                    'role' => $invite->role,
+                    'role_label' => $invite->roleLabel(),
+                    'expires_at' => $invite->expires_at?->toDateString(),
+                ]);
+        } catch (\Throwable) {
+            // Table may be missing until migrations are run on the server.
+            $pendingInvites = collect();
+        }
+
+        $canManage = $request->user()->canManageTeam();
 
         return Inertia::render('Team/Index', [
             'members' => $members,
@@ -81,9 +90,7 @@ class TeamController extends Controller
                 'active' => $members->where('is_active', true)->count(),
                 'pending' => $pendingInvites->count(),
             ],
-            'canManage' => $request->user()->isCompanyAdmin()
-                || $request->user()->hasRole('manager')
-                || $request->user()->hasRole('sales_manager'),
+            'canManage' => $canManage,
         ]);
     }
 
@@ -92,9 +99,7 @@ class TeamController extends Controller
         $company = $request->user()->company;
         app(PermissionRegistrar::class)->setPermissionsTeamId($company->id);
 
-        if (! $request->user()->isCompanyAdmin()
-            && ! $request->user()->hasRole('manager')
-            && ! $request->user()->hasRole('sales_manager')) {
+        if (! $request->user()->canManageTeam()) {
             abort(403);
         }
 
@@ -130,9 +135,7 @@ class TeamController extends Controller
     ): RedirectResponse {
         $company = $request->user()->company;
 
-        if (! $request->user()->isCompanyAdmin()
-            && ! $request->user()->hasRole('manager')
-            && ! $request->user()->hasRole('sales_manager')) {
+        if (! $request->user()->canManageTeam()) {
             abort(403);
         }
 
@@ -149,7 +152,7 @@ class TeamController extends Controller
             abort(403);
         }
 
-        if (! $request->user()->isCompanyAdmin() && ! $request->user()->hasRole('manager')) {
+        if (! $request->user()->canManageTeam()) {
             abort(403);
         }
 
@@ -178,7 +181,7 @@ class TeamController extends Controller
             abort(403);
         }
 
-        if (! $request->user()->isCompanyAdmin() && ! $request->user()->hasRole('manager')) {
+        if (! $request->user()->canManageTeam()) {
             abort(403);
         }
 

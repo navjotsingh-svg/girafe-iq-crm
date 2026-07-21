@@ -4,6 +4,8 @@ namespace App\Http\Middleware;
 
 use Illuminate\Http\Request;
 use Inertia\Middleware;
+use Spatie\Permission\PermissionRegistrar;
+use Throwable;
 
 class HandleInertiaRequests extends Middleware
 {
@@ -18,8 +20,28 @@ class HandleInertiaRequests extends Middleware
     {
         $user = $request->user();
 
-        return [
-            ...parent::share($request),
+        if ($user && $user->company_id) {
+            app(PermissionRegistrar::class)->setPermissionsTeamId($user->company_id);
+        }
+
+        $roles = [];
+        $permissions = [];
+        $canManageTeam = false;
+
+        if ($user) {
+            $roles = $user->getRoleNames()->values()->all();
+            $canManageTeam = $user->canManageTeam();
+
+            try {
+                $permissions = $user->getAllPermissions()->pluck('name')->values()->all();
+            } catch (Throwable) {
+                $permissions = [];
+            }
+        }
+
+        $company = $user ? $user->company : null;
+
+        return array_merge(parent::share($request), [
             'auth' => [
                 'user' => $user ? [
                     'id' => $user->id,
@@ -27,16 +49,17 @@ class HandleInertiaRequests extends Middleware
                     'email' => $user->email,
                     'theme' => $user->theme ?? 'system',
                     'company_id' => $user->company_id,
-                    'roles' => $user->getRoleNames(),
-                    'permissions' => $user->getAllPermissions()->pluck('name'),
+                    'roles' => $roles,
+                    'permissions' => $permissions,
+                    'can_manage_team' => $canManageTeam,
                 ] : null,
-                'company' => $user?->company ? [
-                    'id' => $user->company->id,
-                    'name' => $user->company->name,
-                    'industry_key' => $user->company->industry_key,
-                    'industry' => $user->company->industryName(),
-                    'currency' => $user->company->currency,
-                    'onboarding_completed' => $user->company->onboarding_completed,
+                'company' => $company ? [
+                    'id' => $company->id,
+                    'name' => $company->name,
+                    'industry_key' => $company->industry_key,
+                    'industry' => $company->industryName(),
+                    'currency' => $company->currency,
+                    'onboarding_completed' => $company->onboarding_completed,
                 ] : null,
             ],
             'app' => [
@@ -50,6 +73,6 @@ class HandleInertiaRequests extends Middleware
                 'status' => fn () => $request->session()->get('status'),
                 'import_errors' => fn () => $request->session()->get('import_errors'),
             ],
-        ];
+        ]);
     }
 }

@@ -61,6 +61,22 @@ class User extends Authenticatable
 
     public function isCompanyAdmin(): bool
     {
-        return $this->hasRole('company_admin') || $this->hasRole('super_admin');
+        if ($this->hasRole('company_admin') || $this->hasRole('super_admin')) {
+            return true;
+        }
+
+        // Fallback when Spatie team context / cache is out of sync
+        $roles = $this->getRoleNames();
+
+        return $roles->contains('company_admin') || $roles->contains('super_admin');
+    }
+
+    public function canManageTeam(): bool
+    {
+        if ($this->isCompanyAdmin()) {
+            return true;
+        }
+
+        return $this->hasRole('manager') || $this->hasRole('sales_manager');
     }
 }
