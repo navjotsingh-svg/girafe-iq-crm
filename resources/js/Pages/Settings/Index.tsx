@@ -142,7 +142,11 @@ export default function SettingsIndex({
                 {TABS.map((t) => (
                     <Link
                         key={t.key}
-                        href={route('settings.index', { tab: t.key })}
+                        href={
+                            t.key === 'integrations'
+                                ? route('integrations.index')
+                                : route('settings.index', { tab: t.key })
+                        }
                         className={`rounded-lg px-3 py-1.5 text-sm font-medium ${
                             tab === t.key
                                 ? 'bg-emerald-600 text-white'

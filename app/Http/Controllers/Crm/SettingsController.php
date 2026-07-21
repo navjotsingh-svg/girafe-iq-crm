@@ -17,8 +17,17 @@ class SettingsController extends Controller
 {
     public function index(Request $request): Response
     {
+        return $this->renderIndex($request, $request->get('tab', 'company'));
+    }
+
+    public function integrations(Request $request): Response
+    {
+        return $this->renderIndex($request, 'integrations');
+    }
+
+    private function renderIndex(Request $request, string $tab): Response
+    {
         $company = $request->user()->company;
-        $tab = $request->get('tab', 'company');
 
         $pipeline = Pipeline::query()
             ->where('company_id', $company->id)

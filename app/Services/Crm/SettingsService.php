@@ -121,20 +121,26 @@ class SettingsService
     {
         $stored = $company->settings['integrations'] ?? [];
         $metaConnected = (bool) ($stored['meta']['connected'] ?? false);
-        $metaPages = \App\Models\MetaPage::query()
-            ->where('company_id', $company->id)
-            ->where('is_active', true)
-            ->orderBy('page_name')
-            ->get()
-            ->map(fn ($p) => [
-                'id' => $p->id,
-                'page_id' => $p->page_id,
-                'page_name' => $p->page_name,
-                'subscribed_leadgen' => $p->subscribed_leadgen,
-                'has_instagram' => filled($p->instagram_business_id),
-            ])
-            ->values()
-            ->all();
+        $metaPages = [];
+
+        try {
+            $metaPages = \App\Models\MetaPage::query()
+                ->where('company_id', $company->id)
+                ->where('is_active', true)
+                ->orderBy('page_name')
+                ->get()
+                ->map(fn ($p) => [
+                    'id' => $p->id,
+                    'page_id' => $p->page_id,
+                    'page_name' => $p->page_name,
+                    'subscribed_leadgen' => $p->subscribed_leadgen,
+                    'has_instagram' => filled($p->instagram_business_id),
+                ])
+                ->values()
+                ->all();
+        } catch (\Throwable) {
+            $metaPages = [];
+        }
 
         $items = [];
 

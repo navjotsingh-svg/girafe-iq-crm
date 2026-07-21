@@ -2,7 +2,12 @@ import ApplicationLogo from '@/Components/ApplicationLogo';
 import { Link, usePage } from '@inertiajs/react';
 import { PropsWithChildren, useEffect, useMemo, useState } from 'react';
 
-type NavItem = { name: string; href: string; routeName: string };
+type NavItem = {
+    name: string;
+    href: string;
+    routeName: string;
+    isActive?: (url: string) => boolean;
+};
 
 const NAV: NavItem[] = [
     { name: 'Dashboard', href: '/dashboard', routeName: 'dashboard' },
@@ -17,11 +22,14 @@ const NAV: NavItem[] = [
     { name: 'Team', href: '/team', routeName: 'team.index' },
     { name: 'Reports', href: '/reports', routeName: 'reports.index' },
     { name: 'Automation', href: '/automation', routeName: 'automation.index' },
+    { name: 'Integrations', href: '/integrations', routeName: 'integrations.index' },
     { name: 'WhatsApp', href: '/whatsapp', routeName: 'whatsapp.index' },
     { name: 'Email', href: '/email', routeName: 'email.index' },
     { name: 'Campaigns', href: '/campaigns', routeName: 'campaigns.index' },
     { name: 'Documents', href: '/documents', routeName: 'documents.index' },
-    { name: 'Settings', href: '/settings', routeName: 'settings.index' },
+    { name: 'Settings', href: '/settings', routeName: 'settings.index', isActive: (url) =>
+            url.startsWith('/settings') && !url.includes('tab=integrations'),
+    },
 ];
 
 function applyTheme(theme: string) {
@@ -35,7 +43,8 @@ export default function CrmLayout({
     title,
     children,
 }: PropsWithChildren<{ title?: string }>) {
-    const page = usePage().props as any;
+    const inertiaPage = usePage();
+    const page = inertiaPage.props as any;
     const user = page.auth?.user;
     const company = page.auth?.company;
     const appName = page.app?.name ?? 'Girafe IQ CRM';
@@ -78,7 +87,9 @@ export default function CrmLayout({
                     </div>
                     <nav className="h-[calc(100vh-4rem)] space-y-0.5 overflow-y-auto p-3">
                         {nav.map((item) => {
-                            const active = route().current(item.routeName);
+                            const active = item.isActive
+                                ? item.isActive(inertiaPage.url)
+                                : route().current(item.routeName);
                             return (
                                 <Link
                                     key={item.href}

@@ -121,6 +121,7 @@ Route::middleware(['auth', 'verified', 'tenant'])->group(function () {
 
         Route::get('/reports', [ReportController::class, 'index'])->name('reports.index');
 
+        Route::get('/integrations', [SettingsController::class, 'integrations'])->name('integrations.index');
         Route::get('/settings', [SettingsController::class, 'index'])->name('settings.index');
         Route::patch('/settings/company', [SettingsController::class, 'updateCompany'])->name('settings.company');
         Route::patch('/settings/providers', [SettingsController::class, 'updateProviders'])->name('settings.providers');
