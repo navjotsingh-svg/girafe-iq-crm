@@ -153,11 +153,13 @@ Route::middleware(['auth', 'verified', 'tenant'])->group(function () {
 
         Route::get('/whatsapp', [WhatsAppController::class, 'index'])->name('whatsapp.index');
         Route::post('/whatsapp/templates', [WhatsAppController::class, 'storeTemplate'])->name('whatsapp.templates.store');
+        Route::patch('/whatsapp/templates/{template}', [WhatsAppController::class, 'updateTemplate'])->name('whatsapp.templates.update');
         Route::post('/whatsapp/send', [WhatsAppController::class, 'send'])->name('whatsapp.send');
         Route::delete('/whatsapp/templates/{template}', [WhatsAppController::class, 'destroyTemplate'])->name('whatsapp.templates.destroy');
 
         Route::get('/email', [EmailController::class, 'index'])->name('email.index');
         Route::post('/email/templates', [EmailController::class, 'storeTemplate'])->name('email.templates.store');
+        Route::patch('/email/templates/{template}', [EmailController::class, 'updateTemplate'])->name('email.templates.update');
         Route::post('/email/send', [EmailController::class, 'send'])->name('email.send');
         Route::delete('/email/templates/{template}', [EmailController::class, 'destroyTemplate'])->name('email.templates.destroy');
 

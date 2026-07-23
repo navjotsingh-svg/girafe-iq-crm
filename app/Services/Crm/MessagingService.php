@@ -40,6 +40,27 @@ class MessagingService
     /**
      * @param  array<string, mixed>  $data
      */
+    public function updateTemplate(MessageTemplate $template, array $data): MessageTemplate
+    {
+        $template->update([
+            'name' => $data['name'] ?? $template->name,
+            'subject' => array_key_exists('subject', $data)
+                ? ($data['subject'] ?: null)
+                : $template->subject,
+            'body' => $data['body'] ?? $template->body,
+            'is_active' => array_key_exists('is_active', $data)
+                ? (bool) $data['is_active']
+                : $template->is_active,
+        ]);
+
+        $this->logger->log('template.updated', $template);
+
+        return $template->fresh();
+    }
+
+    /**
+     * @param  array<string, mixed>  $data
+     */
     public function queue(Company $company, ?User $user, array $data): OutboundMessage
     {
         /** @var Model|null $messageable */

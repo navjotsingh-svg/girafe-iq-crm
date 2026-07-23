@@ -44,9 +44,12 @@ export default function MessagingChannel({
 }) {
     const flash = (usePage().props as { flash?: { success?: string } }).flash;
     const [tab, setTab] = useState<'compose' | 'templates' | 'log'>('compose');
+    const [editingId, setEditingId] = useState<number | null>(null);
 
     const storeRoute =
         channel === 'whatsapp' ? 'whatsapp.templates.store' : 'email.templates.store';
+    const updateRoute =
+        channel === 'whatsapp' ? 'whatsapp.templates.update' : 'email.templates.update';
     const sendRoute = channel === 'whatsapp' ? 'whatsapp.send' : 'email.send';
     const destroyRoute =
         channel === 'whatsapp' ? 'whatsapp.templates.destroy' : 'email.templates.destroy';
@@ -66,10 +69,41 @@ export default function MessagingChannel({
         lead_id: '' as string | number,
     });
 
+    const startEdit = (t: Template) => {
+        setEditingId(t.id);
+        setTab('templates');
+        templateForm.setData({
+            name: t.name,
+            subject: t.subject ?? '',
+            body: t.body,
+        });
+        templateForm.clearErrors();
+    };
+
+    const cancelEdit = () => {
+        setEditingId(null);
+        templateForm.reset();
+        templateForm.setData('body', 'Hello {{name}}, ');
+        templateForm.clearErrors();
+    };
+
     const saveTemplate: FormEventHandler = (e) => {
         e.preventDefault();
+        if (editingId) {
+            templateForm.patch(route(updateRoute, editingId), {
+                onSuccess: () => {
+                    setEditingId(null);
+                    templateForm.reset();
+                    templateForm.setData('body', 'Hello {{name}}, ');
+                },
+            });
+            return;
+        }
         templateForm.post(route(storeRoute), {
-            onSuccess: () => templateForm.reset(),
+            onSuccess: () => {
+                templateForm.reset();
+                templateForm.setData('body', 'Hello {{name}}, ');
+            },
         });
     };
 
@@ -246,7 +280,20 @@ export default function MessagingChannel({
                         onSubmit={saveTemplate}
                         className="rounded-2xl border border-slate-200 bg-white p-5 dark:border-slate-800 dark:bg-slate-900"
                     >
-                        <h3 className="font-semibold">New template</h3>
+                        <div className="flex flex-wrap items-center justify-between gap-2">
+                            <h3 className="font-semibold">
+                                {editingId ? 'Edit template' : 'New template'}
+                            </h3>
+                            {editingId && (
+                                <button
+                                    type="button"
+                                    onClick={cancelEdit}
+                                    className="text-xs font-semibold text-slate-500 hover:text-slate-700"
+                                >
+                                    Cancel edit
+                                </button>
+                            )}
+                        </div>
                         <div className="mt-4 grid gap-4 sm:grid-cols-2">
                             <div>
                                 <InputLabel htmlFor="tname" value="Name *" />
@@ -259,6 +306,7 @@ export default function MessagingChannel({
                                     }
                                     required
                                 />
+                                <InputError message={templateForm.errors.name} className="mt-1" />
                             </div>
                             {channel === 'email' && (
                                 <div>
@@ -271,6 +319,10 @@ export default function MessagingChannel({
                                             templateForm.setData('subject', e.target.value)
                                         }
                                         required
+                                    />
+                                    <InputError
+                                        message={templateForm.errors.subject}
+                                        className="mt-1"
                                     />
                                 </div>
                             )}
@@ -286,6 +338,7 @@ export default function MessagingChannel({
                                     }
                                     required
                                 />
+                                <InputError message={templateForm.errors.body} className="mt-1" />
                             </div>
                         </div>
                         <button
@@ -293,7 +346,7 @@ export default function MessagingChannel({
                             disabled={templateForm.processing}
                             className="mt-4 rounded-xl bg-emerald-600 px-4 py-2 text-sm font-semibold text-white"
                         >
-                            Save template
+                            {editingId ? 'Update template' : 'Save template'}
                         </button>
                     </form>
 
@@ -304,7 +357,11 @@ export default function MessagingChannel({
                             templates.map((t) => (
                                 <div
                                     key={t.id}
-                                    className="flex items-start justify-between gap-3 rounded-xl border border-slate-200 bg-white px-4 py-3 dark:border-slate-800 dark:bg-slate-900"
+                                    className={`flex items-start justify-between gap-3 rounded-xl border bg-white px-4 py-3 dark:bg-slate-900 ${
+                                        editingId === t.id
+                                            ? 'border-emerald-300 dark:border-emerald-800'
+                                            : 'border-slate-200 dark:border-slate-800'
+                                    }`}
                                 >
                                     <div>
                                         <div className="font-medium">{t.name}</div>
@@ -317,15 +374,30 @@ export default function MessagingChannel({
                                             {t.body}
                                         </p>
                                     </div>
-                                    <button
-                                        type="button"
-                                        onClick={() =>
-                                            router.delete(route(destroyRoute, t.id))
-                                        }
-                                        className="text-xs font-semibold text-rose-600"
-                                    >
-                                        Delete
-                                    </button>
+                                    <div className="flex shrink-0 gap-3">
+                                        <button
+                                            type="button"
+                                            onClick={() => startEdit(t)}
+                                            className="text-xs font-semibold text-emerald-600"
+                                        >
+                                            Edit
+                                        </button>
+                                        <button
+                                            type="button"
+                                            onClick={() =>
+                                                router.delete(route(destroyRoute, t.id), {
+                                                    onSuccess: () => {
+                                                        if (editingId === t.id) {
+                                                            cancelEdit();
+                                                        }
+                                                    },
+                                                })
+                                            }
+                                            className="text-xs font-semibold text-rose-600"
+                                        >
+                                            Delete
+                                        </button>
+                                    </div>
                                 </div>
                             ))
                         )}

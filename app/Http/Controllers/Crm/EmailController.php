@@ -80,6 +80,24 @@ class EmailController extends Controller
             ->with('success', 'Email template saved.');
     }
 
+    public function updateTemplate(MessageTemplate $template, Request $request, MessagingService $service): RedirectResponse
+    {
+        if ($template->company_id !== $request->user()->company_id || $template->channel !== 'email') {
+            abort(403);
+        }
+
+        $data = $request->validate([
+            'name' => 'required|string|max:255',
+            'subject' => 'required|string|max:255',
+            'body' => 'required|string|max:5000',
+        ]);
+
+        $service->updateTemplate($template, $data);
+
+        return redirect()->route('email.index')
+            ->with('success', 'Email template updated.');
+    }
+
     public function send(Request $request, MessagingService $service): RedirectResponse
     {
         $data = $request->validate([

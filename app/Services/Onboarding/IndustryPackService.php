@@ -104,14 +104,18 @@ class IndustryPackService
 
     private function seedLeadFields(Company $company, array $fields): void
     {
-        $seen = [];
-        foreach (array_values($fields) as $i => $field) {
-            $key = $field['key'];
-            if (isset($seen[$key])) {
+        // Later entries with the same key win (pack overrides common).
+        $merged = [];
+        foreach ($fields as $field) {
+            if (empty($field['key'])) {
                 continue;
             }
-            $seen[$key] = true;
+            $merged[$field['key']] = $field;
+        }
 
+        $i = 0;
+        foreach ($merged as $key => $field) {
+            $i++;
             CustomFieldDefinition::withoutGlobalScopes()->updateOrCreate(
                 [
                     'company_id' => $company->id,
@@ -125,7 +129,7 @@ class IndustryPackService
                     'is_required' => (bool) ($field['is_required'] ?? false),
                     'is_system' => true,
                     'show_in_list' => (bool) ($field['show_in_list'] ?? false),
-                    'sort_order' => $i + 1,
+                    'sort_order' => $i,
                 ]
             );
         }

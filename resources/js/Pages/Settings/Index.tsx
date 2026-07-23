@@ -645,6 +645,7 @@ function FieldsTab({ fields }: { fields: LeadField[] }) {
                                 className={fieldClass}
                                 onChange={(e) => setData('name', e.target.value)}
                                 required
+                                disabled={!!editing?.is_system}
                             />
                             <InputError message={errors.name} />
                         </div>
@@ -655,6 +656,7 @@ function FieldsTab({ fields }: { fields: LeadField[] }) {
                                 className={fieldClass}
                                 value={data.type}
                                 onChange={(e) => setData('type', e.target.value)}
+                                disabled={!!editing?.is_system}
                             >
                                 <option value="text">Text</option>
                                 <option value="number">Number</option>
@@ -677,8 +679,11 @@ function FieldsTab({ fields }: { fields: LeadField[] }) {
                                     value={data.options}
                                     className={fieldClass}
                                     onChange={(e) => setData('options', e.target.value)}
-                                    placeholder="Option A, Option B, Option C"
+                                    placeholder="Under 1L, 1L-5L, 5L-10L, 10L+, Not decided"
                                 />
+                                <p className="mt-1 text-xs text-slate-500">
+                                    These choices appear in the Budget dropdown on Add/Edit Lead.
+                                </p>
                             </div>
                         )}
                         <label className="flex items-center gap-2 text-sm">
@@ -739,15 +744,13 @@ function FieldsTab({ fields }: { fields: LeadField[] }) {
                                     <td className="px-4 py-3">{f.is_system ? 'Yes' : 'No'}</td>
                                     <td className="px-4 py-3 text-right">
                                         <div className="flex justify-end gap-3">
-                                            {!f.is_system && (
-                                                <button
-                                                    type="button"
-                                                    onClick={() => openEdit(f)}
-                                                    className="text-xs font-semibold text-emerald-700 hover:underline"
-                                                >
-                                                    Edit
-                                                </button>
-                                            )}
+                                            <button
+                                                type="button"
+                                                onClick={() => openEdit(f)}
+                                                className="text-xs font-semibold text-emerald-700 hover:underline"
+                                            >
+                                                Edit
+                                            </button>
                                             {!f.is_system && (
                                                 <button
                                                     type="button"

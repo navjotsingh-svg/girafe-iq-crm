@@ -37,7 +37,7 @@ return [
             ['key' => 'hot_leads', 'label' => 'Hot Leads'],
         ],
         'lead_fields' => [
-            ['name' => 'Budget', 'key' => 'budget', 'type' => 'select', 'options' => [], 'show_in_list' => true],
+            ['name' => 'Budget', 'key' => 'budget', 'type' => 'select', 'options' => ['Under 1L', '1L-5L', '5L-10L', '10L+', 'Not decided'], 'show_in_list' => true],
             ['name' => 'City', 'key' => 'city', 'type' => 'text', 'show_in_list' => true],
             ['name' => 'Notes', 'key' => 'notes', 'type' => 'textarea'],
         ],

@@ -36,6 +36,23 @@ class WhatsAppController extends Controller
             ->with('success', 'WhatsApp template saved.');
     }
 
+    public function updateTemplate(MessageTemplate $template, Request $request, MessagingService $service): RedirectResponse
+    {
+        if ($template->company_id !== $request->user()->company_id || $template->channel !== 'whatsapp') {
+            abort(403);
+        }
+
+        $data = $request->validate([
+            'name' => 'required|string|max:255',
+            'body' => 'required|string|max:5000',
+        ]);
+
+        $service->updateTemplate($template, $data);
+
+        return redirect()->route('whatsapp.index')
+            ->with('success', 'WhatsApp template updated.');
+    }
+
     public function send(Request $request, MessagingService $service): RedirectResponse
     {
         $data = $request->validate([

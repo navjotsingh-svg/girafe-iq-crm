@@ -247,10 +247,6 @@ class SettingsService
      */
     public function updateLeadField(CustomFieldDefinition $field, array $data): CustomFieldDefinition
     {
-        if ($field->is_system) {
-            abort(422, 'System fields cannot be edited.');
-        }
-
         $options = $field->options;
         if (array_key_exists('options', $data)) {
             if (is_string($data['options'])) {
@@ -260,6 +256,23 @@ class SettingsService
             } else {
                 $options = null;
             }
+        }
+
+        // System fields: allow editing options / flags so selects like Budget can be customized
+        if ($field->is_system) {
+            $field->update([
+                'options' => $field->type === 'select' ? ($options ?: null) : $field->options,
+                'is_required' => array_key_exists('is_required', $data)
+                    ? (bool) $data['is_required']
+                    : $field->is_required,
+                'show_in_list' => array_key_exists('show_in_list', $data)
+                    ? (bool) $data['show_in_list']
+                    : $field->show_in_list,
+            ]);
+
+            $this->logger->log('settings.lead_field_updated', $field);
+
+            return $field->fresh();
         }
 
         $field->update([
