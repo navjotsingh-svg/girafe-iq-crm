@@ -67,6 +67,7 @@ type IntegrationCard = {
 const TABS = [
     { key: 'company', label: 'Company' },
     { key: 'fields', label: 'Lead fields' },
+    { key: 'assignment', label: 'Lead assignment' },
     { key: 'pipeline', label: 'Pipeline stages' },
     { key: 'providers', label: 'Providers' },
     { key: 'integrations', label: 'Integrations' },
@@ -85,6 +86,8 @@ export default function SettingsIndex({
     currencies,
     providers,
     integrations = [],
+    leadAssignment,
+    team = [],
 }: {
     tab: string;
     company: CompanyData;
@@ -111,6 +114,15 @@ export default function SettingsIndex({
         };
     };
     integrations?: IntegrationCard[];
+    leadAssignment?: {
+        enabled: boolean;
+        mode: string;
+        user_ids: number[];
+        weights?: Record<number, number>;
+        last_assigned_user_id: number | null;
+        last_assigned_name: string | null;
+    };
+    team?: { id: number; name: string }[];
 }) {
     const flash = (
         usePage().props as { flash?: { success?: string; error?: string } }
@@ -167,6 +179,21 @@ export default function SettingsIndex({
                 />
             )}
             {tab === 'fields' && <FieldsTab fields={leadFields} />}
+            {tab === 'assignment' && (
+                <AssignmentTab
+                    leadAssignment={
+                        leadAssignment ?? {
+                            enabled: false,
+                            mode: 'all_active',
+                            user_ids: [],
+                            weights: {},
+                            last_assigned_user_id: null,
+                            last_assigned_name: null,
+                        }
+                    }
+                    team={team}
+                />
+            )}
             {tab === 'pipeline' && <PipelineTab pipeline={pipeline} />}
             {tab === 'providers' && <ProvidersTab providers={providers} />}
             {tab === 'integrations' && <IntegrationsTab integrations={integrations} />}
@@ -303,9 +330,245 @@ function CompanyTab({
     );
 }
 
+function AssignmentTab({
+    leadAssignment,
+    team,
+}: {
+    leadAssignment: {
+        enabled: boolean;
+        mode: string;
+        user_ids: number[];
+        weights?: Record<number, number> | Record<string, number>;
+        last_assigned_user_id: number | null;
+        last_assigned_name: string | null;
+    };
+    team: { id: number; name: string }[];
+}) {
+    const initialWeights: Record<string, string> = {};
+    const storedWeights = (leadAssignment.weights ?? {}) as Record<string, number>;
+    team.forEach((u) => {
+        const stored = storedWeights[String(u.id)] ?? storedWeights[u.id as unknown as string];
+        initialWeights[String(u.id)] = String(
+            stored !== undefined && stored !== null ? stored : 1,
+        );
+    });
+
+    const { data, setData, patch, processing } = useForm({
+        enabled: leadAssignment.enabled,
+        mode: leadAssignment.mode === 'selected' ? 'selected' : 'all_active',
+        user_ids: leadAssignment.user_ids.map(String),
+        weights: initialWeights,
+    });
+
+    const toggleUser = (id: number) => {
+        const key = String(id);
+        setData(
+            'user_ids',
+            data.user_ids.includes(key)
+                ? data.user_ids.filter((x) => x !== key)
+                : [...data.user_ids, key],
+        );
+    };
+
+    const setWeight = (id: number, value: string) => {
+        setData('weights', {
+            ...data.weights,
+            [String(id)]: value,
+        });
+    };
+
+    const submit: FormEventHandler = (e) => {
+        e.preventDefault();
+        patch(route('settings.lead-assignment'));
+    };
+
+    const visibleTeam =
+        data.mode === 'selected'
+            ? team.filter((u) => data.user_ids.includes(String(u.id)))
+            : team;
+
+    const cycleTotal = visibleTeam.reduce((sum, u) => {
+        const w = Math.max(0, Math.min(100, parseInt(data.weights[String(u.id)] || '0', 10) || 0));
+        return sum + w;
+    }, 0);
+
+    return (
+        <form
+            onSubmit={submit}
+            className="rounded-2xl border border-slate-200 bg-white p-5 dark:border-slate-800 dark:bg-slate-900"
+        >
+            <h3 className="font-semibold">Weighted round-robin assignment</h3>
+            <p className="mt-1 text-sm text-slate-500">
+                Distribute new leads by weight. Example: Staff A = 2, Staff B = 1, Staff C = 10
+                means in every 13 leads, A gets 2, B gets 1, and C gets 10.
+            </p>
+
+            <label className="mt-5 flex cursor-pointer items-start gap-3">
+                <input
+                    type="checkbox"
+                    checked={data.enabled}
+                    onChange={(e) => setData('enabled', e.target.checked)}
+                    className="mt-1 rounded border-slate-300 text-emerald-600 focus:ring-emerald-500"
+                />
+                <span>
+                    <span className="block text-sm font-medium text-slate-800 dark:text-slate-100">
+                        Enable auto assignment
+                    </span>
+                    <span className="mt-0.5 block text-xs text-slate-500">
+                        Manual “Assign to” still overrides auto assignment when set. Weight 0
+                        excludes a person from the rotation.
+                    </span>
+                </span>
+            </label>
+
+            <div className={`mt-5 space-y-4 ${data.enabled ? '' : 'pointer-events-none opacity-50'}`}>
+                <div>
+                    <InputLabel value="Assignment pool" />
+                    <div className="mt-2 flex flex-wrap gap-3">
+                        <label className="flex cursor-pointer items-center gap-2 text-sm">
+                            <input
+                                type="radio"
+                                name="mode"
+                                checked={data.mode === 'all_active'}
+                                onChange={() => setData('mode', 'all_active')}
+                                className="border-slate-300 text-emerald-600 focus:ring-emerald-500"
+                            />
+                            All active team members
+                        </label>
+                        <label className="flex cursor-pointer items-center gap-2 text-sm">
+                            <input
+                                type="radio"
+                                name="mode"
+                                checked={data.mode === 'selected'}
+                                onChange={() => setData('mode', 'selected')}
+                                className="border-slate-300 text-emerald-600 focus:ring-emerald-500"
+                            />
+                            Selected members only
+                        </label>
+                    </div>
+                </div>
+
+                {data.mode === 'selected' && (
+                    <div>
+                        <InputLabel value="Include in rotation" />
+                        {team.length === 0 ? (
+                            <p className="mt-2 text-sm text-slate-500">No active team members.</p>
+                        ) : (
+                            <ul className="mt-2 max-h-40 space-y-2 overflow-y-auto rounded-xl border border-slate-200 p-3 dark:border-slate-700">
+                                {team.map((u) => (
+                                    <li key={u.id}>
+                                        <label className="flex cursor-pointer items-center gap-2 text-sm">
+                                            <input
+                                                type="checkbox"
+                                                checked={data.user_ids.includes(String(u.id))}
+                                                onChange={() => toggleUser(u.id)}
+                                                className="rounded border-slate-300 text-emerald-600 focus:ring-emerald-500"
+                                            />
+                                            {u.name}
+                                        </label>
+                                    </li>
+                                ))}
+                            </ul>
+                        )}
+                    </div>
+                )}
+
+                <div>
+                    <InputLabel value="Staff weights" />
+                    {visibleTeam.length === 0 ? (
+                        <p className="mt-2 text-sm text-slate-500">
+                            {data.mode === 'selected'
+                                ? 'Select at least one team member above.'
+                                : 'No active team members.'}
+                        </p>
+                    ) : (
+                        <div className="mt-2 overflow-hidden rounded-xl border border-slate-200 dark:border-slate-700">
+                            <table className="min-w-full text-sm">
+                                <thead className="bg-slate-50 text-left text-xs uppercase text-slate-500 dark:bg-slate-800/50">
+                                    <tr>
+                                        <th className="px-3 py-2">Staff</th>
+                                        <th className="w-28 px-3 py-2">Weight</th>
+                                        <th className="w-24 px-3 py-2">Share</th>
+                                    </tr>
+                                </thead>
+                                <tbody>
+                                    {visibleTeam.map((u) => {
+                                        const w = Math.max(
+                                            0,
+                                            Math.min(
+                                                100,
+                                                parseInt(data.weights[String(u.id)] || '0', 10) ||
+                                                    0,
+                                            ),
+                                        );
+                                        const pct =
+                                            cycleTotal > 0
+                                                ? Math.round((w / cycleTotal) * 100)
+                                                : 0;
+                                        return (
+                                            <tr
+                                                key={u.id}
+                                                className="border-t border-slate-100 dark:border-slate-800"
+                                            >
+                                                <td className="px-3 py-2 font-medium text-slate-800 dark:text-slate-100">
+                                                    {u.name}
+                                                </td>
+                                                <td className="px-3 py-2">
+                                                    <input
+                                                        type="number"
+                                                        min={0}
+                                                        max={100}
+                                                        value={data.weights[String(u.id)] ?? '1'}
+                                                        onChange={(e) =>
+                                                            setWeight(u.id, e.target.value)
+                                                        }
+                                                        className="w-20 rounded-lg border-slate-200 bg-slate-50 px-2 py-1.5 text-sm focus:border-emerald-500 focus:ring-emerald-500 dark:border-slate-700 dark:bg-slate-800"
+                                                    />
+                                                </td>
+                                                <td className="px-3 py-2 tabular-nums text-slate-500">
+                                                    {pct}%
+                                                </td>
+                                            </tr>
+                                        );
+                                    })}
+                                </tbody>
+                            </table>
+                        </div>
+                    )}
+                    {cycleTotal > 0 && (
+                        <p className="mt-2 text-xs text-slate-500">
+                            Cycle size: {cycleTotal} lead{cycleTotal === 1 ? '' : 's'} before the
+                            pattern repeats.
+                        </p>
+                    )}
+                </div>
+
+                {leadAssignment.last_assigned_name && (
+                    <p className="text-xs text-slate-500">
+                        Last auto-assigned to{' '}
+                        <span className="font-medium text-slate-700 dark:text-slate-200">
+                            {leadAssignment.last_assigned_name}
+                        </span>
+                        . Next lead continues the weighted sequence.
+                    </p>
+                )}
+            </div>
+
+            <button
+                type="submit"
+                disabled={processing}
+                className="mt-5 rounded-xl bg-emerald-600 px-5 py-2.5 text-sm font-semibold text-white disabled:opacity-50"
+            >
+                Save assignment
+            </button>
+        </form>
+    );
+}
+
 function FieldsTab({ fields }: { fields: LeadField[] }) {
     const [showForm, setShowForm] = useState(false);
-    const { data, setData, post, processing, errors, reset } = useForm({
+    const [editing, setEditing] = useState<LeadField | null>(null);
+    const { data, setData, post, patch, processing, errors, reset } = useForm({
         name: '',
         key: '',
         type: 'text',
@@ -314,13 +577,42 @@ function FieldsTab({ fields }: { fields: LeadField[] }) {
         show_in_list: false,
     });
 
+    const openCreate = () => {
+        setEditing(null);
+        reset();
+        setShowForm(true);
+    };
+
+    const openEdit = (field: LeadField) => {
+        setEditing(field);
+        setData({
+            name: field.name,
+            key: field.key,
+            type: field.type,
+            options: (field.options ?? []).join(', '),
+            is_required: field.is_required,
+            show_in_list: field.show_in_list,
+        });
+        setShowForm(true);
+    };
+
+    const closeForm = () => {
+        setShowForm(false);
+        setEditing(null);
+        reset();
+    };
+
     const submit: FormEventHandler = (e) => {
         e.preventDefault();
+        if (editing) {
+            patch(route('settings.fields.update', editing.id), {
+                onSuccess: () => closeForm(),
+            });
+            return;
+        }
+
         post(route('settings.fields.store'), {
-            onSuccess: () => {
-                reset();
-                setShowForm(false);
-            },
+            onSuccess: () => closeForm(),
         });
     };
 
@@ -329,7 +621,7 @@ function FieldsTab({ fields }: { fields: LeadField[] }) {
             <div className="flex justify-end">
                 <button
                     type="button"
-                    onClick={() => setShowForm(!showForm)}
+                    onClick={() => (showForm ? closeForm() : openCreate())}
                     className="rounded-xl bg-emerald-600 px-4 py-2 text-sm font-semibold text-white"
                 >
                     {showForm ? 'Close' : '+ Add field'}
@@ -341,7 +633,10 @@ function FieldsTab({ fields }: { fields: LeadField[] }) {
                     onSubmit={submit}
                     className="rounded-2xl border border-slate-200 bg-white p-5 dark:border-slate-800 dark:bg-slate-900"
                 >
-                    <div className="grid gap-4 sm:grid-cols-2">
+                    <h3 className="font-semibold">
+                        {editing ? `Edit field: ${editing.name}` : 'New lead field'}
+                    </h3>
+                    <div className="mt-4 grid gap-4 sm:grid-cols-2">
                         <div>
                             <InputLabel htmlFor="fname" value="Field name *" />
                             <TextInput
@@ -386,13 +681,31 @@ function FieldsTab({ fields }: { fields: LeadField[] }) {
                                 />
                             </div>
                         )}
+                        <label className="flex items-center gap-2 text-sm">
+                            <input
+                                type="checkbox"
+                                checked={data.is_required}
+                                onChange={(e) => setData('is_required', e.target.checked)}
+                                className="rounded border-slate-300 text-emerald-600 focus:ring-emerald-500"
+                            />
+                            Required on Add Lead
+                        </label>
+                        <label className="flex items-center gap-2 text-sm">
+                            <input
+                                type="checkbox"
+                                checked={data.show_in_list}
+                                onChange={(e) => setData('show_in_list', e.target.checked)}
+                                className="rounded border-slate-300 text-emerald-600 focus:ring-emerald-500"
+                            />
+                            Show in leads list
+                        </label>
                     </div>
                     <button
                         type="submit"
                         disabled={processing}
                         className="mt-4 rounded-xl bg-emerald-600 px-4 py-2 text-sm font-semibold text-white"
                     >
-                        Save field
+                        {editing ? 'Update field' : 'Save field'}
                     </button>
                 </form>
             )}
@@ -404,6 +717,7 @@ function FieldsTab({ fields }: { fields: LeadField[] }) {
                             <th className="px-4 py-3">Name</th>
                             <th className="px-4 py-3">Key</th>
                             <th className="px-4 py-3">Type</th>
+                            <th className="px-4 py-3">Required</th>
                             <th className="px-4 py-3">System</th>
                             <th className="px-4 py-3" />
                         </tr>
@@ -411,7 +725,7 @@ function FieldsTab({ fields }: { fields: LeadField[] }) {
                     <tbody className="divide-y divide-slate-100 dark:divide-slate-800">
                         {fields.length === 0 ? (
                             <tr>
-                                <td colSpan={5} className="px-4 py-8 text-center text-slate-500">
+                                <td colSpan={6} className="px-4 py-8 text-center text-slate-500">
                                     No custom lead fields yet
                                 </td>
                             </tr>
@@ -421,21 +735,33 @@ function FieldsTab({ fields }: { fields: LeadField[] }) {
                                     <td className="px-4 py-3 font-medium">{f.name}</td>
                                     <td className="px-4 py-3 font-mono text-xs">{f.key}</td>
                                     <td className="px-4 py-3 capitalize">{f.type}</td>
+                                    <td className="px-4 py-3">{f.is_required ? 'Yes' : 'No'}</td>
                                     <td className="px-4 py-3">{f.is_system ? 'Yes' : 'No'}</td>
                                     <td className="px-4 py-3 text-right">
-                                        {!f.is_system && (
-                                            <button
-                                                type="button"
-                                                onClick={() =>
-                                                    router.delete(
-                                                        route('settings.fields.destroy', f.id),
-                                                    )
-                                                }
-                                                className="text-xs font-semibold text-rose-600"
-                                            >
-                                                Delete
-                                            </button>
-                                        )}
+                                        <div className="flex justify-end gap-3">
+                                            {!f.is_system && (
+                                                <button
+                                                    type="button"
+                                                    onClick={() => openEdit(f)}
+                                                    className="text-xs font-semibold text-emerald-700 hover:underline"
+                                                >
+                                                    Edit
+                                                </button>
+                                            )}
+                                            {!f.is_system && (
+                                                <button
+                                                    type="button"
+                                                    onClick={() =>
+                                                        router.delete(
+                                                            route('settings.fields.destroy', f.id),
+                                                        )
+                                                    }
+                                                    className="text-xs font-semibold text-rose-600"
+                                                >
+                                                    Delete
+                                                </button>
+                                            )}
+                                        </div>
                                     </td>
                                 </tr>
                             ))
@@ -453,7 +779,8 @@ function PipelineTab({
     pipeline: { id: number; name: string; stages: Stage[] } | null;
 }) {
     const [showForm, setShowForm] = useState(false);
-    const { data, setData, post, processing, errors, reset } = useForm({
+    const [editing, setEditing] = useState<Stage | null>(null);
+    const { data, setData, post, patch, processing, errors, reset } = useForm({
         pipeline_id: pipeline?.id ?? '',
         name: '',
         color: '#64748b',
@@ -470,13 +797,81 @@ function PipelineTab({
         );
     }
 
+    const closeForm = () => {
+        setShowForm(false);
+        setEditing(null);
+        reset();
+        setData('pipeline_id', pipeline.id);
+    };
+
+    const openCreate = () => {
+        setEditing(null);
+        reset();
+        setData({
+            pipeline_id: pipeline.id,
+            name: '',
+            color: '#64748b',
+            probability: 50,
+            is_won: false,
+            is_lost: false,
+        });
+        setShowForm(true);
+    };
+
+    const openEdit = (stage: Stage) => {
+        setEditing(stage);
+        setData({
+            pipeline_id: pipeline.id,
+            name: stage.name,
+            color: stage.color || '#64748b',
+            probability: stage.probability,
+            is_won: stage.is_won,
+            is_lost: stage.is_lost,
+        });
+        setShowForm(true);
+    };
+
     const submit: FormEventHandler = (e) => {
         e.preventDefault();
+        if (editing) {
+            patch(route('settings.stages.update', editing.id), {
+                onSuccess: () => closeForm(),
+            });
+            return;
+        }
+
         post(route('settings.stages.store'), {
-            onSuccess: () => {
-                reset('name', 'color', 'probability', 'is_won', 'is_lost');
-                setShowForm(false);
-            },
+            onSuccess: () => closeForm(),
+        });
+    };
+
+    const deleteStage = (stage: Stage) => {
+        const others = pipeline.stages.filter((s) => s.id !== stage.id);
+        if (others.length === 0) {
+            window.alert('You cannot delete the only stage in this pipeline.');
+            return;
+        }
+
+        if (stage.deals_count > 0) {
+            const ok = window.confirm(
+                `"${stage.name}" has ${stage.deals_count} deal(s). Delete it and move those deals to "${others[0].name}"?`,
+            );
+            if (!ok) {
+                return;
+            }
+            router.delete(route('settings.stages.destroy', stage.id), {
+                data: { reassign_stage_id: others[0].id },
+                preserveScroll: true,
+            });
+            return;
+        }
+
+        if (!window.confirm(`Delete stage "${stage.name}"?`)) {
+            return;
+        }
+
+        router.delete(route('settings.stages.destroy', stage.id), {
+            preserveScroll: true,
         });
     };
 
@@ -484,11 +879,14 @@ function PipelineTab({
         <div className="space-y-4">
             <div className="flex flex-wrap items-center justify-between gap-3">
                 <p className="text-sm text-slate-500">
-                    Pipeline: <span className="font-semibold text-slate-800 dark:text-slate-200">{pipeline.name}</span>
+                    Pipeline:{' '}
+                    <span className="font-semibold text-slate-800 dark:text-slate-200">
+                        {pipeline.name}
+                    </span>
                 </p>
                 <button
                     type="button"
-                    onClick={() => setShowForm(!showForm)}
+                    onClick={() => (showForm ? closeForm() : openCreate())}
                     className="rounded-xl bg-emerald-600 px-4 py-2 text-sm font-semibold text-white"
                 >
                     {showForm ? 'Close' : '+ Add stage'}
@@ -500,7 +898,10 @@ function PipelineTab({
                     onSubmit={submit}
                     className="rounded-2xl border border-slate-200 bg-white p-5 dark:border-slate-800 dark:bg-slate-900"
                 >
-                    <div className="grid gap-4 sm:grid-cols-3">
+                    <h3 className="font-semibold">
+                        {editing ? `Edit stage: ${editing.name}` : 'New pipeline stage'}
+                    </h3>
+                    <div className="mt-4 grid gap-4 sm:grid-cols-3">
                         <div>
                             <InputLabel htmlFor="sname" value="Stage name *" />
                             <TextInput
@@ -540,7 +941,12 @@ function PipelineTab({
                             <input
                                 type="checkbox"
                                 checked={data.is_won}
-                                onChange={(e) => setData('is_won', e.target.checked)}
+                                onChange={(e) => {
+                                    setData('is_won', e.target.checked);
+                                    if (e.target.checked) {
+                                        setData('is_lost', false);
+                                    }
+                                }}
                             />
                             Won stage
                         </label>
@@ -548,7 +954,12 @@ function PipelineTab({
                             <input
                                 type="checkbox"
                                 checked={data.is_lost}
-                                onChange={(e) => setData('is_lost', e.target.checked)}
+                                onChange={(e) => {
+                                    setData('is_lost', e.target.checked);
+                                    if (e.target.checked) {
+                                        setData('is_won', false);
+                                    }
+                                }}
                             />
                             Lost stage
                         </label>
@@ -558,43 +969,58 @@ function PipelineTab({
                         disabled={processing}
                         className="mt-4 rounded-xl bg-emerald-600 px-4 py-2 text-sm font-semibold text-white"
                     >
-                        Save stage
+                        {editing ? 'Update stage' : 'Save stage'}
                     </button>
                 </form>
             )}
 
             <div className="space-y-2">
-                {pipeline.stages.map((s) => (
-                    <div
-                        key={s.id}
-                        className="flex flex-wrap items-center justify-between gap-3 rounded-xl border border-slate-200 bg-white px-4 py-3 dark:border-slate-800 dark:bg-slate-900"
-                        style={{ borderLeftWidth: 4, borderLeftColor: s.color }}
-                    >
-                        <div>
-                            <div className="font-medium">{s.name}</div>
-                            <div className="text-xs text-slate-500">
-                                {s.probability}% · {s.deals_count} deals
-                                {s.is_won && ' · Won'}
-                                {s.is_lost && ' · Lost'}
+                {pipeline.stages.length === 0 ? (
+                    <div className="rounded-xl border border-dashed border-slate-300 p-8 text-center text-sm text-slate-500">
+                        No stages yet. Add your first stage.
+                    </div>
+                ) : (
+                    pipeline.stages.map((s) => (
+                        <div
+                            key={s.id}
+                            className="flex flex-wrap items-center justify-between gap-3 rounded-xl border border-slate-200 bg-white px-4 py-3 dark:border-slate-800 dark:bg-slate-900"
+                            style={{ borderLeftWidth: 4, borderLeftColor: s.color }}
+                        >
+                            <div>
+                                <div className="font-medium">{s.name}</div>
+                                <div className="text-xs text-slate-500">
+                                    {s.probability}% · {s.deals_count} deals
+                                    {s.is_won && ' · Won'}
+                                    {s.is_lost && ' · Lost'}
+                                </div>
+                            </div>
+                            <div className="flex items-center gap-3">
+                                <button
+                                    type="button"
+                                    onClick={() => openEdit(s)}
+                                    className="text-xs font-semibold text-emerald-700 hover:underline"
+                                >
+                                    Edit
+                                </button>
+                                <button
+                                    type="button"
+                                    onClick={() => deleteStage(s)}
+                                    disabled={pipeline.stages.length <= 1}
+                                    className="text-xs font-semibold text-rose-600 hover:underline disabled:opacity-40"
+                                    title={
+                                        pipeline.stages.length <= 1
+                                            ? 'Keep at least one stage'
+                                            : s.deals_count > 0
+                                              ? 'Delete and move deals to another stage'
+                                              : 'Delete stage'
+                                    }
+                                >
+                                    Delete
+                                </button>
                             </div>
                         </div>
-                        <button
-                            type="button"
-                            disabled={s.deals_count > 0}
-                            onClick={() =>
-                                router.delete(route('settings.stages.destroy', s.id))
-                            }
-                            className="text-xs font-semibold text-rose-600 disabled:opacity-40"
-                            title={
-                                s.deals_count > 0
-                                    ? 'Move deals out of this stage first'
-                                    : 'Delete stage'
-                            }
-                        >
-                            Delete
-                        </button>
-                    </div>
-                ))}
+                    ))
+                )}
             </div>
         </div>
     );
@@ -785,6 +1211,10 @@ function ProvidersTab({
 }
 
 function IntegrationsTab({ integrations }: { integrations: IntegrationCard[] }) {
+    const page = usePage().props as {
+        auth?: { user?: { can_manage_integrations?: boolean } };
+    };
+    const canManage = page.auth?.user?.can_manage_integrations !== false;
     const [copied, setCopied] = useState<string | null>(null);
     const meta = integrations.find((i) => i.key === 'meta');
     const others = integrations.filter((i) => i.key !== 'meta');
@@ -839,6 +1269,7 @@ function IntegrationsTab({ integrations }: { integrations: IntegrationCard[] }) 
                         </div>
 
                         {meta.enabled ? (
+                            canManage ? (
                             <form method="post" action={meta.disconnect_url || '#'}>
                                 <input
                                     type="hidden"
@@ -860,7 +1291,12 @@ function IntegrationsTab({ integrations }: { integrations: IntegrationCard[] }) 
                                     Disconnect
                                 </button>
                             </form>
-                        ) : (
+                            ) : (
+                                <span className="rounded-full bg-emerald-100 px-3 py-1 text-xs font-semibold text-emerald-800">
+                                    Connected
+                                </span>
+                            )
+                        ) : canManage ? (
                             <a
                                 href={
                                     meta.meta_configured
@@ -881,6 +1317,10 @@ function IntegrationsTab({ integrations }: { integrations: IntegrationCard[] }) 
                                 <span className="text-base font-bold">f</span>
                                 Connect with Facebook
                             </a>
+                        ) : (
+                            <span className="text-sm text-slate-500">
+                                Ask a company admin to connect Meta.
+                            </span>
                         )}
                     </div>
 

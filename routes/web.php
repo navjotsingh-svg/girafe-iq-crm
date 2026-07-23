@@ -100,6 +100,8 @@ Route::middleware(['auth', 'verified', 'tenant'])->group(function () {
         Route::get('/leads/{lead}', [LeadController::class, 'show'])->name('leads.show');
         Route::post('/leads', [LeadController::class, 'store'])->name('leads.store');
         Route::patch('/leads/{lead}', [LeadController::class, 'update'])->name('leads.update');
+        Route::post('/leads/{lead}/log', [LeadController::class, 'logActivity'])->name('leads.log');
+        Route::post('/leads/{lead}/documents', [LeadController::class, 'uploadDocument'])->name('leads.documents.store');
 
         Route::get('/pipeline', [PipelineController::class, 'index'])->name('pipeline.index');
         Route::patch('/deals/{deal}/stage', [PipelineController::class, 'moveStage'])->name('deals.move-stage');
@@ -125,11 +127,13 @@ Route::middleware(['auth', 'verified', 'tenant'])->group(function () {
         Route::get('/settings', [SettingsController::class, 'index'])->name('settings.index');
         Route::patch('/settings/company', [SettingsController::class, 'updateCompany'])->name('settings.company');
         Route::patch('/settings/providers', [SettingsController::class, 'updateProviders'])->name('settings.providers');
+        Route::patch('/settings/lead-assignment', [SettingsController::class, 'updateLeadAssignment'])->name('settings.lead-assignment');
         Route::patch('/settings/integrations', [SettingsController::class, 'updateIntegration'])->name('settings.integrations');
         Route::get('/integrations/meta/connect', [MetaOAuthController::class, 'connect'])->name('integrations.meta.connect');
         Route::get('/integrations/meta/callback', [MetaOAuthController::class, 'callback'])->name('integrations.meta.callback');
         Route::post('/integrations/meta/disconnect', [MetaOAuthController::class, 'disconnect'])->name('integrations.meta.disconnect');
         Route::post('/settings/fields', [SettingsController::class, 'storeLeadField'])->name('settings.fields.store');
+        Route::patch('/settings/fields/{field}', [SettingsController::class, 'updateLeadField'])->name('settings.fields.update');
         Route::delete('/settings/fields/{field}', [SettingsController::class, 'destroyLeadField'])->name('settings.fields.destroy');
         Route::post('/settings/stages', [SettingsController::class, 'storePipelineStage'])->name('settings.stages.store');
         Route::patch('/settings/stages/{stage}', [SettingsController::class, 'updatePipelineStage'])->name('settings.stages.update');

@@ -27,10 +27,13 @@ class HandleInertiaRequests extends Middleware
         $roles = [];
         $permissions = [];
         $canManageTeam = false;
+        $canManageIntegrations = false;
 
         if ($user) {
+            $user->syncPermissionTeam();
             $roles = $user->getRoleNames()->values()->all();
             $canManageTeam = $user->canManageTeam();
+            $canManageIntegrations = $user->canManageIntegrations();
 
             try {
                 $permissions = $user->getAllPermissions()->pluck('name')->values()->all();
@@ -52,6 +55,7 @@ class HandleInertiaRequests extends Middleware
                     'roles' => $roles,
                     'permissions' => $permissions,
                     'can_manage_team' => $canManageTeam,
+                    'can_manage_integrations' => $canManageIntegrations,
                 ] : null,
                 'company' => $company ? [
                     'id' => $company->id,

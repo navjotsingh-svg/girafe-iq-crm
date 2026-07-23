@@ -46,6 +46,7 @@ class EnquiryController extends Controller
                 ->orderBy('name')
                 ->get(['id', 'name']),
             'openCreate' => $request->boolean('create'),
+            'roundRobinEnabled' => (bool) ($company->settings['lead_assignment']['enabled'] ?? false),
             'stats' => [
                 'new' => Enquiry::query()->where('status', Enquiry::STATUS_NEW)->count(),
                 'in_progress' => Enquiry::query()->where('status', Enquiry::STATUS_IN_PROGRESS)->count(),

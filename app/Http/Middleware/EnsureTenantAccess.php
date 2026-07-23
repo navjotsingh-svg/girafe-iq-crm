@@ -17,6 +17,10 @@ class EnsureTenantAccess
             return $next($request);
         }
 
+        if ($user->company_id) {
+            app(PermissionRegistrar::class)->setPermissionsTeamId($user->company_id);
+        }
+
         if ($user->hasRole('super_admin') && ! $user->company_id) {
             return $next($request);
         }
@@ -28,8 +32,6 @@ class EnsureTenantAccess
         if (! $user->is_active || ! $user->company->is_active) {
             abort(403, 'Your company account is inactive.');
         }
-
-        app(PermissionRegistrar::class)->setPermissionsTeamId($user->company_id);
 
         return $next($request);
     }

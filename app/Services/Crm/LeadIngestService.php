@@ -16,6 +16,7 @@ class LeadIngestService
     public function __construct(
         private ActivityLogger $logger,
         private AutomationService $automation,
+        private LeadAssignmentService $assignment,
     ) {}
 
     /**
@@ -111,6 +112,11 @@ class LeadIngestService
 
     private function resolveActor(Company $company): User
     {
+        $next = $this->assignment->nextAssignee($company);
+        if ($next) {
+            return $next;
+        }
+
         $admin = User::query()
             ->where('company_id', $company->id)
             ->where('is_active', true)

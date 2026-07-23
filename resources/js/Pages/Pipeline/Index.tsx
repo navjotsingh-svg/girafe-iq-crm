@@ -54,9 +54,16 @@ export default function PipelineIndex({
                 <div>
                     <h2 className="text-xl font-bold">Sales Pipeline</h2>
                     <p className="text-sm text-slate-500">
-                        {pipeline?.name ?? 'No pipeline configured'} · Kanban board
+                        {pipeline?.name ?? 'No pipeline configured'} · {stages.length} stages
+                        {stages.length > 4 ? ' · scroll sideways to see all' : ''}
                     </p>
                 </div>
+                <Link
+                    href={route('settings.index', { tab: 'pipeline' })}
+                    className="text-sm font-medium text-emerald-700 hover:underline"
+                >
+                    Manage stages
+                </Link>
             </div>
 
             <div className="mb-6 grid gap-3 sm:grid-cols-3">
@@ -126,7 +133,8 @@ export default function PipelineIndex({
                                             >
                                                 {stages.map((s) => (
                                                     <option key={s.id} value={s.id}>
-                                                        Move to {s.name}
+                                                        {s.name}
+                                                        {s.id === stage.id ? ' (current)' : ''}
                                                     </option>
                                                 ))}
                                             </select>

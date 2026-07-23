@@ -41,12 +41,14 @@ export default function EnquiriesIndex({
     team,
     stats,
     openCreate,
+    roundRobinEnabled = false,
 }: {
     enquiries: { data: EnquiryRow[]; links: unknown[] };
     sources: Option[];
     team: Option[];
     stats: { new: number; in_progress: number; converted: number };
     openCreate?: boolean;
+    roundRobinEnabled?: boolean;
 }) {
     const flash = (usePage().props as { flash?: { success?: string } }).flash;
     const [showForm, setShowForm] = useState(!!openCreate);
@@ -189,7 +191,11 @@ export default function EnquiriesIndex({
                                     setData('assigned_user_id', e.target.value)
                                 }
                             >
-                                <option value="">Auto assign me</option>
+                                <option value="">
+                                    {roundRobinEnabled
+                                        ? 'Auto (round robin)'
+                                        : 'Auto assign me'}
+                                </option>
                                 {team.map((u) => (
                                     <option key={u.id} value={u.id}>
                                         {u.name}

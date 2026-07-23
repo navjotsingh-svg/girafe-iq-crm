@@ -13,15 +13,26 @@ class MetaOAuthController extends Controller
 {
     public function connect(Request $request, MetaOAuthService $meta): RedirectResponse
     {
-        $company = $request->user()->company;
+        $user = $request->user();
+        $company = $user?->company;
 
-        if (! $request->user()->canManageTeam()) {
-            abort(403);
+        if (! $user || ! $company) {
+            return redirect()
+                ->route('login')
+                ->with('status', 'Please log in to connect Meta.');
+        }
+
+        $user->syncPermissionTeam();
+
+        if (! $user->canManageIntegrations()) {
+            return redirect()
+                ->route('integrations.index')
+                ->with('error', 'Only company admins or managers can connect Meta. Ask your admin to connect the account.');
         }
 
         if (! $meta->isConfigured()) {
             return redirect()
-                ->route('settings.index', ['tab' => 'integrations'])
+                ->route('integrations.index')
                 ->with('error', 'Meta app is not configured on this CRM. Ask the platform admin to set META_APP_ID and META_APP_SECRET.');
         }
 
@@ -35,7 +46,7 @@ class MetaOAuthController extends Controller
     {
         if ($request->filled('error')) {
             return redirect()
-                ->route('settings.index', ['tab' => 'integrations'])
+                ->route('integrations.index')
                 ->with('error', 'Meta connection cancelled: '.$request->get('error_description', $request->get('error')));
         }
 
@@ -44,7 +55,7 @@ class MetaOAuthController extends Controller
 
         if ($state === '' || ! hash_equals($sessionState, $state)) {
             return redirect()
-                ->route('settings.index', ['tab' => 'integrations'])
+                ->route('integrations.index')
                 ->with('error', 'Invalid Meta OAuth state. Please try Connect again.');
         }
 
@@ -68,27 +79,37 @@ class MetaOAuthController extends Controller
             $count = count($pages);
 
             return redirect()
-                ->route('settings.index', ['tab' => 'integrations'])
+                ->route('integrations.index')
                 ->with('success', $count > 0
                     ? "Meta connected — {$count} Facebook Page(s) linked. Lead Ads will sync into Enquiries."
                     : 'Meta connected, but no Facebook Pages were found on this account.');
         } catch (Throwable $e) {
             return redirect()
-                ->route('settings.index', ['tab' => 'integrations'])
+                ->route('integrations.index')
                 ->with('error', 'Meta connection failed: '.$e->getMessage());
         }
     }
 
     public function disconnect(Request $request, MetaOAuthService $meta): RedirectResponse
     {
-        if (! $request->user()->canManageTeam()) {
-            abort(403);
+        $user = $request->user();
+
+        if (! $user) {
+            return redirect()->route('login');
         }
 
-        $meta->disconnect($request->user()->company);
+        $user->syncPermissionTeam();
+
+        if (! $user->canManageIntegrations()) {
+            return redirect()
+                ->route('integrations.index')
+                ->with('error', 'Only company admins or managers can disconnect Meta.');
+        }
+
+        $meta->disconnect($user->company);
 
         return redirect()
-            ->route('settings.index', ['tab' => 'integrations'])
+            ->route('integrations.index')
             ->with('success', 'Meta account disconnected.');
     }
 }

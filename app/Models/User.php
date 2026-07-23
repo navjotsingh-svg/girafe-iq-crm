@@ -59,8 +59,17 @@ class User extends Authenticatable
         return $this->belongsTo(Company::class);
     }
 
+    public function syncPermissionTeam(): void
+    {
+        if ($this->company_id) {
+            app(\Spatie\Permission\PermissionRegistrar::class)->setPermissionsTeamId($this->company_id);
+        }
+    }
+
     public function isCompanyAdmin(): bool
     {
+        $this->syncPermissionTeam();
+
         if ($this->hasRole('company_admin') || $this->hasRole('super_admin')) {
             return true;
         }
@@ -73,10 +82,52 @@ class User extends Authenticatable
 
     public function canManageTeam(): bool
     {
+        $this->syncPermissionTeam();
+
         if ($this->isCompanyAdmin()) {
             return true;
         }
 
-        return $this->hasRole('manager') || $this->hasRole('sales_manager');
+        if ($this->hasRole('manager') || $this->hasRole('sales_manager')) {
+            return true;
+        }
+
+        $roles = $this->getRoleNames();
+
+        return $roles->contains('manager') || $roles->contains('sales_manager');
+    }
+
+    public function canManageIntegrations(): bool
+    {
+        $this->syncPermissionTeam();
+
+        if ($this->canManageTeam()) {
+            return true;
+        }
+
+        try {
+            if ($this->can('settings.manage') || $this->can('settings.view')) {
+                return true;
+            }
+        } catch (\Throwable) {
+            // ignore permission cache issues
+        }
+
+        // Last resort: workspace owner (first user of the company)
+        return $this->isWorkspaceOwner();
+    }
+
+    public function isWorkspaceOwner(): bool
+    {
+        if (! $this->company_id) {
+            return false;
+        }
+
+        $ownerId = static::query()
+            ->where('company_id', $this->company_id)
+            ->orderBy('id')
+            ->value('id');
+
+        return (int) $ownerId === (int) $this->id;
     }
 }

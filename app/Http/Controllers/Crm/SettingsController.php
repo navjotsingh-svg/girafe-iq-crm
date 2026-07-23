@@ -6,6 +6,7 @@ use App\Http\Controllers\Controller;
 use App\Models\CustomFieldDefinition;
 use App\Models\Pipeline;
 use App\Models\PipelineStage;
+use App\Models\User;
 use App\Services\Crm\SettingsService;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
@@ -29,15 +30,11 @@ class SettingsController extends Controller
     {
         $company = $request->user()->company;
 
-        $pipeline = Pipeline::query()
-            ->where('company_id', $company->id)
-            ->where('is_default', true)
-            ->with(['stages' => fn ($q) => $q->orderBy('sort_order')])
-            ->first()
-            ?? Pipeline::query()
-                ->where('company_id', $company->id)
-                ->with(['stages' => fn ($q) => $q->orderBy('sort_order')])
-                ->first();
+        $pipeline = Pipeline::resolveForCompany($company->id);
+
+        if ($pipeline) {
+            app(SettingsService::class)->ensureOpenStagesBeforeClosed($pipeline);
+        }
 
         $industries = collect(config('industries.onboarding', []))
             ->map(fn ($key) => [
@@ -45,6 +42,8 @@ class SettingsController extends Controller
                 'name' => config("industries.profiles.{$key}.name", $key),
             ])
             ->values();
+
+        $boardStages = $pipeline ? $pipeline->stagesForBoard() : collect();
 
         return Inertia::render('Settings/Index', [
             'tab' => $tab,
@@ -75,7 +74,7 @@ class SettingsController extends Controller
             'pipeline' => $pipeline ? [
                 'id' => $pipeline->id,
                 'name' => $pipeline->name,
-                'stages' => $pipeline->stages->map(fn (PipelineStage $s) => [
+                'stages' => $boardStages->map(fn (PipelineStage $s) => [
                     'id' => $s->id,
                     'name' => $s->name,
                     'color' => $s->color,
@@ -84,7 +83,7 @@ class SettingsController extends Controller
                     'is_won' => $s->is_won,
                     'is_lost' => $s->is_lost,
                     'deals_count' => $s->deals()->count(),
-                ]),
+                ])->values(),
             ] : null,
             'timezones' => [
                 'Asia/Kolkata',
@@ -112,6 +111,12 @@ class SettingsController extends Controller
                 ],
             ],
             'integrations' => app(SettingsService::class)->integrationsForUi($company),
+            'leadAssignment' => app(SettingsService::class)->leadAssignmentForUi($company),
+            'team' => User::query()
+                ->where('company_id', $company->id)
+                ->where('is_active', true)
+                ->orderBy('name')
+                ->get(['id', 'name']),
         ]);
     }
 
@@ -155,6 +160,23 @@ class SettingsController extends Controller
             ->with('success', 'Provider settings saved.');
     }
 
+    public function updateLeadAssignment(Request $request, SettingsService $service): RedirectResponse
+    {
+        $data = $request->validate([
+            'enabled' => 'nullable|boolean',
+            'mode' => 'required|in:all_active,selected',
+            'user_ids' => 'nullable|array',
+            'user_ids.*' => 'integer|exists:users,id',
+            'weights' => 'nullable|array',
+            'weights.*' => 'integer|min:0|max:100',
+        ]);
+
+        $service->updateLeadAssignment($request->user()->company, $data);
+
+        return redirect()->route('settings.index', ['tab' => 'assignment'])
+            ->with('success', 'Lead assignment settings saved.');
+    }
+
     public function updateIntegration(Request $request, SettingsService $service): RedirectResponse
     {
         $platforms = array_keys(config('integrations.platforms', []));
@@ -190,6 +212,26 @@ class SettingsController extends Controller
             ->with('success', 'Lead field added.');
     }
 
+    public function updateLeadField(CustomFieldDefinition $field, Request $request, SettingsService $service): RedirectResponse
+    {
+        if ($field->company_id !== $request->user()->company_id) {
+            abort(403);
+        }
+
+        $data = $request->validate([
+            'name' => 'required|string|max:100',
+            'type' => ['required', Rule::in(['text', 'number', 'select', 'textarea', 'date', 'boolean', 'phone', 'email'])],
+            'options' => 'nullable|string|max:2000',
+            'is_required' => 'nullable|boolean',
+            'show_in_list' => 'nullable|boolean',
+        ]);
+
+        $service->updateLeadField($field, $data);
+
+        return redirect()->route('settings.index', ['tab' => 'fields'])
+            ->with('success', 'Lead field updated.');
+    }
+
     public function destroyLeadField(CustomFieldDefinition $field, Request $request, SettingsService $service): RedirectResponse
     {
         if ($field->company_id !== $request->user()->company_id) {
@@ -205,7 +247,7 @@ class SettingsController extends Controller
     public function storePipelineStage(Request $request, SettingsService $service): RedirectResponse
     {
         $data = $request->validate([
-            'pipeline_id' => 'required|exists:pipelines,id',
+            'pipeline_id' => 'nullable|exists:pipelines,id',
             'name' => 'required|string|max:100',
             'color' => 'nullable|string|max:20',
             'probability' => 'nullable|integer|min:0|max:100',
@@ -213,11 +255,14 @@ class SettingsController extends Controller
             'is_lost' => 'nullable|boolean',
         ]);
 
-        $pipeline = Pipeline::query()->findOrFail($data['pipeline_id']);
-        if ($pipeline->company_id !== $request->user()->company_id) {
-            abort(403);
+        $pipeline = Pipeline::resolveForCompany($request->user()->company_id);
+
+        if (! $pipeline) {
+            return redirect()->route('settings.index', ['tab' => 'pipeline'])
+                ->with('error', 'No pipeline found. Complete onboarding first.');
         }
 
+        // Always attach to the company default pipeline (ignore stale form ids)
         $service->createPipelineStage($request->user()->company, $pipeline, $data);
 
         return redirect()->route('settings.index', ['tab' => 'pipeline'])
@@ -231,7 +276,7 @@ class SettingsController extends Controller
         }
 
         $data = $request->validate([
-            'name' => 'nullable|string|max:100',
+            'name' => 'required|string|max:100',
             'color' => 'nullable|string|max:20',
             'probability' => 'nullable|integer|min:0|max:100',
             'is_won' => 'nullable|boolean',
@@ -251,8 +296,15 @@ class SettingsController extends Controller
             abort(403);
         }
 
+        $data = $request->validate([
+            'reassign_stage_id' => 'nullable|exists:pipeline_stages,id',
+        ]);
+
         try {
-            $service->deletePipelineStage($stage);
+            $service->deletePipelineStage(
+                $stage,
+                isset($data['reassign_stage_id']) ? (int) $data['reassign_stage_id'] : null
+            );
         } catch (\Symfony\Component\HttpKernel\Exception\HttpException $e) {
             return redirect()->route('settings.index', ['tab' => 'pipeline'])
                 ->with('error', $e->getMessage());

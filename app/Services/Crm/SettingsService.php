@@ -69,6 +69,29 @@ class SettingsService
     }
 
     /**
+     * @param  array{enabled?: bool, mode?: string, user_ids?: list<int|string>}  $data
+     */
+    public function updateLeadAssignment(Company $company, array $data): Company
+    {
+        $company = app(LeadAssignmentService::class)->updateConfig($company, $data);
+
+        $this->logger->log('settings.lead_assignment_updated', $company, [
+            'enabled' => (bool) ($data['enabled'] ?? false),
+            'mode' => $data['mode'] ?? 'all_active',
+        ]);
+
+        return $company;
+    }
+
+    /**
+     * @return array{enabled: bool, mode: string, user_ids: list<int>, last_assigned_user_id: int|null, last_assigned_name: string|null}
+     */
+    public function leadAssignmentForUi(Company $company): array
+    {
+        return app(LeadAssignmentService::class)->forUi($company);
+    }
+
+    /**
      * Enable/disable lead sync platforms and rotate webhook secrets.
      *
      * @param  array{platform: string, enabled?: bool, access_token?: string|null, verify_token?: string|null, regenerate_secret?: bool}  $data
@@ -219,6 +242,43 @@ class SettingsService
         return $field;
     }
 
+    /**
+     * @param  array<string, mixed>  $data
+     */
+    public function updateLeadField(CustomFieldDefinition $field, array $data): CustomFieldDefinition
+    {
+        if ($field->is_system) {
+            abort(422, 'System fields cannot be edited.');
+        }
+
+        $options = $field->options;
+        if (array_key_exists('options', $data)) {
+            if (is_string($data['options'])) {
+                $options = array_values(array_filter(array_map('trim', explode(',', $data['options']))));
+            } elseif (is_array($data['options'])) {
+                $options = $data['options'];
+            } else {
+                $options = null;
+            }
+        }
+
+        $field->update([
+            'name' => $data['name'] ?? $field->name,
+            'type' => $data['type'] ?? $field->type,
+            'options' => ($data['type'] ?? $field->type) === 'select' ? ($options ?: null) : null,
+            'is_required' => array_key_exists('is_required', $data)
+                ? (bool) $data['is_required']
+                : $field->is_required,
+            'show_in_list' => array_key_exists('show_in_list', $data)
+                ? (bool) $data['show_in_list']
+                : $field->show_in_list,
+        ]);
+
+        $this->logger->log('settings.lead_field_updated', $field);
+
+        return $field->fresh();
+    }
+
     public function deleteLeadField(CustomFieldDefinition $field): void
     {
         if ($field->is_system) {
@@ -234,18 +294,47 @@ class SettingsService
      */
     public function createPipelineStage(Company $company, Pipeline $pipeline, array $data): PipelineStage
     {
-        $maxOrder = PipelineStage::query()
+        $baseSlug = Str::slug($data['name']) ?: 'stage';
+        $slug = $baseSlug;
+        $i = 2;
+        while (
+            PipelineStage::withTrashed()
+                ->where('pipeline_id', $pipeline->id)
+                ->where('slug', $slug)
+                ->exists()
+        ) {
+            $slug = $baseSlug.'-'.$i;
+            $i++;
+        }
+
+        // Insert before Won/Lost so custom stages (e.g. Hold) appear on the open board
+        $closedOrder = PipelineStage::query()
             ->where('pipeline_id', $pipeline->id)
-            ->max('sort_order') ?? 0;
+            ->where(function ($q) {
+                $q->where('is_won', true)->orWhere('is_lost', true);
+            })
+            ->min('sort_order');
+
+        if ($closedOrder !== null) {
+            $sortOrder = (int) $closedOrder;
+            PipelineStage::query()
+                ->where('pipeline_id', $pipeline->id)
+                ->where('sort_order', '>=', $sortOrder)
+                ->increment('sort_order');
+        } else {
+            $sortOrder = (int) (PipelineStage::query()
+                ->where('pipeline_id', $pipeline->id)
+                ->max('sort_order') ?? 0) + 1;
+        }
 
         $stage = PipelineStage::create([
             'company_id' => $company->id,
             'pipeline_id' => $pipeline->id,
             'name' => $data['name'],
-            'slug' => Str::slug($data['name']),
+            'slug' => $slug,
             'color' => $data['color'] ?? '#64748b',
             'probability' => (int) ($data['probability'] ?? 0),
-            'sort_order' => $maxOrder + 1,
+            'sort_order' => $sortOrder,
             'is_won' => (bool) ($data['is_won'] ?? false),
             'is_lost' => (bool) ($data['is_lost'] ?? false),
         ]);
@@ -260,27 +349,108 @@ class SettingsService
      */
     public function updatePipelineStage(PipelineStage $stage, array $data): PipelineStage
     {
-        $stage->update([
+        $updates = [
             'name' => $data['name'] ?? $stage->name,
             'color' => $data['color'] ?? $stage->color,
             'probability' => $data['probability'] ?? $stage->probability,
             'is_won' => array_key_exists('is_won', $data) ? (bool) $data['is_won'] : $stage->is_won,
             'is_lost' => array_key_exists('is_lost', $data) ? (bool) $data['is_lost'] : $stage->is_lost,
             'sort_order' => $data['sort_order'] ?? $stage->sort_order,
-        ]);
+        ];
+
+        if (! empty($data['name']) && $data['name'] !== $stage->name) {
+            $baseSlug = Str::slug($data['name']) ?: $stage->slug;
+            $slug = $baseSlug;
+            $i = 2;
+            while (
+                PipelineStage::withTrashed()
+                    ->where('pipeline_id', $stage->pipeline_id)
+                    ->where('slug', $slug)
+                    ->where('id', '!=', $stage->id)
+                    ->exists()
+            ) {
+                $slug = $baseSlug.'-'.$i;
+                $i++;
+            }
+            $updates['slug'] = $slug;
+        }
+
+        $stage->update($updates);
 
         $this->logger->log('settings.pipeline_stage_updated', $stage);
 
         return $stage->fresh();
     }
 
-    public function deletePipelineStage(PipelineStage $stage): void
+    public function deletePipelineStage(PipelineStage $stage, ?int $reassignToStageId = null): void
     {
-        if ($stage->deals()->exists()) {
-            abort(422, 'Cannot delete a stage that has deals. Move deals first.');
+        $dealCount = $stage->deals()->count();
+
+        if ($dealCount > 0) {
+            $targetId = $reassignToStageId;
+
+            if (! $targetId) {
+                $targetId = PipelineStage::query()
+                    ->where('pipeline_id', $stage->pipeline_id)
+                    ->where('id', '!=', $stage->id)
+                    ->orderBy('sort_order')
+                    ->value('id');
+            }
+
+            if (! $targetId) {
+                abort(422, 'Cannot delete the last stage while it still has deals.');
+            }
+
+            $target = PipelineStage::query()->find($targetId);
+            if (! $target || $target->pipeline_id !== $stage->pipeline_id) {
+                abort(422, 'Choose another stage in the same pipeline to move deals into.');
+            }
+
+            $stage->deals()->update(['pipeline_stage_id' => $target->id]);
         }
 
-        $this->logger->log('settings.pipeline_stage_deleted', $stage);
+        $this->logger->log('settings.pipeline_stage_deleted', $stage, [
+            'reassigned_deals' => $dealCount,
+            'reassign_to' => $reassignToStageId,
+        ]);
         $stage->delete();
+    }
+
+    /**
+     * Move open custom stages (e.g. Hold) before Won/Lost so they show on the board.
+     */
+    public function ensureOpenStagesBeforeClosed(Pipeline $pipeline): void
+    {
+        $stages = PipelineStage::query()
+            ->where('pipeline_id', $pipeline->id)
+            ->orderBy('sort_order')
+            ->orderBy('id')
+            ->get();
+
+        if ($stages->isEmpty()) {
+            return;
+        }
+
+        $open = $stages->filter(fn (PipelineStage $s) => ! $s->is_won && ! $s->is_lost)->values();
+        $closed = $stages->filter(fn (PipelineStage $s) => $s->is_won || $s->is_lost)->values();
+
+        if ($closed->isEmpty()) {
+            return;
+        }
+
+        $firstClosedOrder = (int) $closed->min('sort_order');
+        $needsReorder = $open->contains(fn (PipelineStage $s) => (int) $s->sort_order > $firstClosedOrder);
+
+        if (! $needsReorder) {
+            return;
+        }
+
+        $order = 1;
+        foreach ($open->concat($closed) as $stage) {
+            if ((int) $stage->sort_order !== $order) {
+                $stage->update(['sort_order' => $order]);
+            }
+            $order++;
+        }
     }
 }

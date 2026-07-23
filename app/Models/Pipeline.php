@@ -32,4 +32,34 @@ class Pipeline extends Model
     {
         return $this->hasMany(PipelineStage::class)->orderBy('sort_order');
     }
+
+    public static function resolveForCompany(int $companyId): ?self
+    {
+        return static::query()
+            ->where('company_id', $companyId)
+            ->where('is_default', true)
+            ->where('is_active', true)
+            ->first()
+            ?? static::query()
+                ->where('company_id', $companyId)
+                ->where('is_active', true)
+                ->orderByDesc('is_default')
+                ->orderBy('id')
+                ->first();
+    }
+
+    /**
+     * All stages for this pipeline (company already verified).
+     *
+     * @return \Illuminate\Database\Eloquent\Collection<int, PipelineStage>
+     */
+    public function stagesForBoard()
+    {
+        return PipelineStage::query()
+            ->where('pipeline_id', $this->id)
+            ->where('company_id', $this->company_id)
+            ->orderBy('sort_order')
+            ->orderBy('id')
+            ->get();
+    }
 }

@@ -16,6 +16,7 @@ class EnquiryService
         private ActivityLogger $logger,
         private DealService $dealService,
         private AutomationService $automation,
+        private LeadAssignmentService $assignment,
     ) {}
 
     /**
@@ -23,6 +24,9 @@ class EnquiryService
      */
     public function create(Company $company, User $user, array $data): Enquiry
     {
+        $explicit = ! empty($data['assigned_user_id']) ? (int) $data['assigned_user_id'] : null;
+        $assignedUserId = $this->assignment->resolveAssigneeId($company, $explicit, $user);
+
         $enquiry = Enquiry::create([
             'company_id' => $company->id,
             'name' => $data['name'],
@@ -31,7 +35,7 @@ class EnquiryService
             'lead_source_id' => $data['lead_source_id'] ?? null,
             'channel' => $data['channel'] ?? null,
             'message' => $data['message'] ?? null,
-            'assigned_user_id' => $data['assigned_user_id'] ?? $user->id,
+            'assigned_user_id' => $assignedUserId,
             'created_by' => $user->id,
             'status' => Enquiry::STATUS_NEW,
         ]);
@@ -59,6 +63,12 @@ class EnquiryService
                     ->orderBy('sort_order')
                     ->first();
 
+            $company = Company::query()->find($enquiry->company_id);
+            $assigneeId = $enquiry->assigned_user_id
+                ?? ($company
+                    ? $this->assignment->resolveAssigneeId($company, null, $user)
+                    : $user->id);
+
             $lead = Lead::create([
                 'company_id' => $enquiry->company_id,
                 'enquiry_id' => $enquiry->id,
@@ -67,7 +77,7 @@ class EnquiryService
                 'phone' => $enquiry->phone,
                 'lead_status_id' => $defaultStatus?->id,
                 'lead_source_id' => $enquiry->lead_source_id,
-                'assigned_user_id' => $enquiry->assigned_user_id ?? $user->id,
+                'assigned_user_id' => $assigneeId,
                 'temperature' => 'warm',
                 'notes' => $enquiry->message,
                 'created_by' => $user->id,

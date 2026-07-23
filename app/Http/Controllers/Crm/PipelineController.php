@@ -18,16 +18,7 @@ class PipelineController extends Controller
     {
         $company = $request->user()->company;
 
-        $pipeline = Pipeline::query()
-            ->where('company_id', $company->id)
-            ->where('is_default', true)
-            ->with(['stages' => fn ($q) => $q->orderBy('sort_order')])
-            ->first()
-            ?? Pipeline::query()
-                ->where('company_id', $company->id)
-                ->where('is_active', true)
-                ->with(['stages' => fn ($q) => $q->orderBy('sort_order')])
-                ->first();
+        $pipeline = Pipeline::resolveForCompany($company->id);
 
         $stages = [];
         $totalValue = 0;
@@ -35,12 +26,15 @@ class PipelineController extends Controller
         $openCount = 0;
 
         if ($pipeline) {
+            app(\App\Services\Crm\SettingsService::class)->ensureOpenStagesBeforeClosed($pipeline);
+            $boardStages = $pipeline->stagesForBoard();
+
             $deals = Deal::query()
                 ->with(['lead:id,name,phone,temperature', 'assignee:id,name'])
                 ->where('pipeline_id', $pipeline->id)
                 ->get();
 
-            foreach ($pipeline->stages as $stage) {
+            foreach ($boardStages as $stage) {
                 $stageDeals = $deals->where('pipeline_stage_id', $stage->id)->values();
 
                 $stages[] = [
