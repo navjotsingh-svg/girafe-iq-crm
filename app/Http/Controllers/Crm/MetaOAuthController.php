@@ -36,6 +36,12 @@ class MetaOAuthController extends Controller
                 ->with('error', 'Meta app is not configured on this CRM. Ask the platform admin to set META_APP_ID and META_APP_SECRET.');
         }
 
+        if (! filled(config('services.meta.login_config_id'))) {
+            return redirect()
+                ->route('integrations.index')
+                ->with('error', 'Meta Login for Business is not set up. In Meta App Dashboard create a Facebook Login for Business configuration with lead/page permissions, then set META_LOGIN_CONFIG_ID in .env. Without it Facebook returns Invalid Scopes for leads_retrieval / pages_manage_ads.');
+        }
+
         $state = $meta->makeState($company);
         $request->session()->put('meta_oauth_state', $state);
 

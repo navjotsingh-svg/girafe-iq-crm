@@ -42,17 +42,17 @@ return [
     'meta' => [
         'app_id' => env('META_APP_ID'),
         'app_secret' => env('META_APP_SECRET'),
-        'graph_version' => env('META_GRAPH_VERSION', 'v19.0'),
+        'graph_version' => env('META_GRAPH_VERSION', 'v21.0'),
         'webhook_verify_token' => env('META_WEBHOOK_VERIFY_TOKEN', 'girafe_meta_verify'),
         'redirect_uri' => env('META_REDIRECT_URI'), // defaults to route in service
-        'scopes' => [
-            'pages_show_list',
-            'pages_read_engagement',
-            'pages_manage_metadata',
-            'leads_retrieval',
-            'pages_manage_ads',
-            'business_management',
-        ],
+        // Facebook Login for Business configuration ID (App Dashboard → Facebook Login for Business → Configurations).
+        // Required for lead/page business permissions; when set, OAuth uses config_id instead of raw scope list.
+        'login_config_id' => env('META_LOGIN_CONFIG_ID'),
+        // Used only when META_LOGIN_CONFIG_ID is empty (classic Login — limited for CRM leadgen).
+        'scopes' => array_values(array_filter(array_map('trim', explode(',', (string) env(
+            'META_SCOPES',
+            'pages_show_list,pages_read_engagement,pages_manage_metadata,pages_manage_ads,leads_retrieval,ads_management,business_management'
+        ))))),
     ],
 
 ];

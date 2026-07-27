@@ -196,7 +196,9 @@ class SettingsService
                     : ($row['connected_at'] ?? null),
                 'meta_pages' => $key === 'meta' ? $metaPages : [],
                 'meta_configured' => $key === 'meta'
-                    ? (filled(config('services.meta.app_id')) && filled(config('services.meta.app_secret')))
+                    ? (filled(config('services.meta.app_id'))
+                        && filled(config('services.meta.app_secret'))
+                        && filled(config('services.meta.login_config_id')))
                     : true,
                 'connect_url' => $key === 'meta' ? url('/integrations/meta/connect') : null,
                 'disconnect_url' => $key === 'meta' ? url('/integrations/meta/disconnect') : null,

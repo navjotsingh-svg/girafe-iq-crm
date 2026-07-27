@@ -1329,9 +1329,11 @@ function IntegrationsTab({ integrations }: { integrations: IntegrationCard[] }) 
 
                     {!meta.meta_configured && (
                         <div className="mt-4 rounded-xl border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-900 dark:border-amber-900 dark:bg-amber-950/40 dark:text-amber-100">
-                            Platform admin must set <code>META_APP_ID</code> and{' '}
-                            <code>META_APP_SECRET</code> in the server <code>.env</code> before
-                            tenants can connect.
+                            Platform admin must set <code>META_APP_ID</code>,{' '}
+                            <code>META_APP_SECRET</code>, and{' '}
+                            <code>META_LOGIN_CONFIG_ID</code> (Facebook Login for Business
+                            configuration) in the server <code>.env</code>. Without the config ID,
+                            Meta rejects lead scopes such as <code>leads_retrieval</code>.
                         </div>
                     )}
 

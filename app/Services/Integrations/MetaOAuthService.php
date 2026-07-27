@@ -31,6 +31,10 @@ class MetaOAuthService
 
     /**
      * Build Facebook OAuth dialog URL for this company.
+     *
+     * Prefer Facebook Login for Business via META_LOGIN_CONFIG_ID so lead/page
+     * business permissions are valid. Classic scope-based Login rejects many of
+     * those scopes with "Invalid Scopes" for developers.
      */
     public function authorizationUrl(Company $company, string $state): string
     {
@@ -38,16 +42,26 @@ class MetaOAuthService
             throw new RuntimeException('Meta app is not configured. Set META_APP_ID and META_APP_SECRET.');
         }
 
-        $version = config('services.meta.graph_version', 'v19.0');
-        $scopes = implode(',', config('services.meta.scopes', []));
+        $version = config('services.meta.graph_version', 'v21.0');
+        $configId = config('services.meta.login_config_id');
 
-        return 'https://www.facebook.com/'.$version.'/dialog/oauth?'.http_build_query([
+        $params = [
             'client_id' => config('services.meta.app_id'),
             'redirect_uri' => $this->redirectUri(),
             'state' => $state,
-            'scope' => $scopes,
             'response_type' => 'code',
-        ]);
+        ];
+
+        if (filled($configId)) {
+            $params['config_id'] = $configId;
+            // Ensure authorization-code flow for Login for Business configs.
+            $params['override_default_response_type'] = 'true';
+        } else {
+            $scopes = implode(',', config('services.meta.scopes', []));
+            $params['scope'] = $scopes;
+        }
+
+        return 'https://www.facebook.com/'.$version.'/dialog/oauth?'.http_build_query($params);
     }
 
     /**
