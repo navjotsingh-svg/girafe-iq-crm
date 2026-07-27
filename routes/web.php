@@ -50,6 +50,18 @@ Route::get('/privacy-policy', function () {
     ]);
 })->name('privacy-policy');
 
+Route::get('/terms-and-conditions', function () {
+    return Inertia::render('Legal/TermsAndConditions', [
+        'lastUpdated' => 'July 27, 2026',
+    ]);
+})->name('terms');
+
+Route::get('/user-data-deletion', function () {
+    return Inertia::render('Legal/DataDeletion', [
+        'lastUpdated' => 'July 27, 2026',
+    ]);
+})->name('data-deletion');
+
 /*
 | Team invite accept links (public — staff create their password here).
 | Registered on web.php so they are never missed by route:cache / auth grouping.

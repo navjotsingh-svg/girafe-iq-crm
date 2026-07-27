@@ -115,12 +115,27 @@ export default function AuthSplitLayout({
                         {children}
                     </div>
 
-                    <p className="mt-6 text-center text-xs text-slate-400">
+                    <p className="mt-6 flex flex-wrap items-center justify-center gap-x-3 gap-y-1 text-center text-xs text-slate-400">
                         <Link
                             href={route('privacy-policy')}
                             className="hover:text-emerald-700"
                         >
                             Privacy Policy
+                        </Link>
+                        <span className="text-slate-300" aria-hidden>
+                            ·
+                        </span>
+                        <Link href={route('terms')} className="hover:text-emerald-700">
+                            Terms
+                        </Link>
+                        <span className="text-slate-300" aria-hidden>
+                            ·
+                        </span>
+                        <Link
+                            href={route('data-deletion')}
+                            className="hover:text-emerald-700"
+                        >
+                            Data deletion
                         </Link>
                     </p>
                 </div>
