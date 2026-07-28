@@ -4,6 +4,7 @@ namespace App\Services\Crm;
 
 use App\Models\Company;
 use App\Models\Enquiry;
+use App\Models\FollowUp;
 use App\Models\Lead;
 use App\Models\LeadStatus;
 use App\Models\User;
@@ -88,6 +89,22 @@ class EnquiryService
                 'converted_at' => now(),
                 'lead_id' => $lead->id,
             ]);
+
+            FollowUp::query()
+                ->where('enquiry_id', $enquiry->id)
+                ->whereNull('lead_id')
+                ->update(['lead_id' => $lead->id]);
+
+            $nextFollowUp = FollowUp::query()
+                ->where('enquiry_id', $enquiry->id)
+                ->where('status', FollowUp::STATUS_PENDING)
+                ->whereNotNull('due_at')
+                ->orderBy('due_at')
+                ->value('due_at');
+
+            if ($nextFollowUp) {
+                $lead->update(['next_follow_up_at' => $nextFollowUp]);
+            }
 
             $this->logger->log('enquiry.converted', $enquiry, ['lead_id' => $lead->id]);
             $this->logger->log('lead.created', $lead, ['from_enquiry' => $enquiry->id]);

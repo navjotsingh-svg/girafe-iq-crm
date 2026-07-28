@@ -3,6 +3,7 @@
 namespace App\Services\Crm;
 
 use App\Models\Company;
+use App\Models\Enquiry;
 use App\Models\FollowUp;
 use App\Models\Lead;
 use App\Models\TaskType;
@@ -28,6 +29,7 @@ class FollowUpService
         $followUp = FollowUp::create([
             'company_id' => $company->id,
             'lead_id' => $data['lead_id'] ?? null,
+            'enquiry_id' => $data['enquiry_id'] ?? null,
             'deal_id' => $data['deal_id'] ?? null,
             'task_type_id' => $data['task_type_id'] ?? null,
             'title' => $data['title'],
@@ -54,6 +56,28 @@ class FollowUpService
     }
 
     public function logAgainstLead(Company $company, User $user, Lead $lead, array $data): FollowUp
+    {
+        return $this->logNoteOrCall($company, $user, $data, [
+            'lead_id' => $lead->id,
+        ]);
+    }
+
+    /**
+     * @param  array<string, mixed>  $data
+     */
+    public function logAgainstEnquiry(Company $company, User $user, Enquiry $enquiry, array $data): FollowUp
+    {
+        return $this->logNoteOrCall($company, $user, $data, [
+            'enquiry_id' => $enquiry->id,
+            'lead_id' => $enquiry->lead_id,
+        ]);
+    }
+
+    /**
+     * @param  array<string, mixed>  $data
+     * @param  array{lead_id?: int|null, enquiry_id?: int|null}  $links
+     */
+    private function logNoteOrCall(Company $company, User $user, array $data, array $links): FollowUp
     {
         $kind = ($data['kind'] ?? 'note') === 'call' ? 'call' : 'note';
 
@@ -86,7 +110,8 @@ class FollowUpService
         }
 
         return $this->create($company, $user, [
-            'lead_id' => $lead->id,
+            'lead_id' => $links['lead_id'] ?? null,
+            'enquiry_id' => $links['enquiry_id'] ?? null,
             'task_type_id' => $taskTypeId,
             'title' => $title,
             'description' => $description !== '' ? $description : null,

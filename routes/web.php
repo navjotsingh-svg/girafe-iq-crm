@@ -117,7 +117,10 @@ Route::middleware(['auth', 'verified', 'tenant'])->group(function () {
         Route::get('/enquiries', [EnquiryController::class, 'index'])->name('enquiries.index');
         Route::post('/enquiries', [EnquiryController::class, 'store'])->name('enquiries.store');
         Route::post('/enquiries/bulk-convert', [EnquiryController::class, 'bulkConvert'])->name('enquiries.bulk-convert');
+        Route::get('/enquiries/{enquiry}', [EnquiryController::class, 'show'])->name('enquiries.show');
         Route::post('/enquiries/{enquiry}/convert', [EnquiryController::class, 'convert'])->name('enquiries.convert');
+        Route::post('/enquiries/{enquiry}/log', [EnquiryController::class, 'log'])->name('enquiries.log');
+        Route::post('/enquiries/{enquiry}/follow-ups', [EnquiryController::class, 'scheduleFollowUp'])->name('enquiries.follow-ups.store');
 
         Route::get('/leads', [LeadController::class, 'index'])->name('leads.index');
         Route::get('/leads/{lead}', [LeadController::class, 'show'])->name('leads.show');
@@ -138,13 +141,17 @@ Route::middleware(['auth', 'verified', 'tenant'])->group(function () {
         Route::post('/customers', [CustomerController::class, 'store'])->name('customers.store');
         Route::patch('/customers/{customer}', [CustomerController::class, 'update'])->name('customers.update');
 
-        Route::get('/team', [TeamController::class, 'index'])->name('team.index');
-        Route::post('/team', [TeamController::class, 'store'])->name('team.store');
-        Route::delete('/team/invites/{invitation}', [TeamController::class, 'cancelInvite'])->name('team.invites.cancel');
-        Route::patch('/team/{member}/role', [TeamController::class, 'updateRole'])->name('team.update-role');
-        Route::post('/team/{member}/toggle-active', [TeamController::class, 'toggleActive'])->name('team.toggle-active');
+        Route::middleware('permission:team.view')->group(function () {
+            Route::get('/team', [TeamController::class, 'index'])->name('team.index');
+            Route::post('/team', [TeamController::class, 'store'])->name('team.store');
+            Route::delete('/team/invites/{invitation}', [TeamController::class, 'cancelInvite'])->name('team.invites.cancel');
+            Route::patch('/team/{member}/role', [TeamController::class, 'updateRole'])->name('team.update-role');
+            Route::post('/team/{member}/toggle-active', [TeamController::class, 'toggleActive'])->name('team.toggle-active');
+        });
 
-        Route::get('/reports', [ReportController::class, 'index'])->name('reports.index');
+        Route::get('/reports', [ReportController::class, 'index'])
+            ->middleware('permission:reports.view')
+            ->name('reports.index');
 
         Route::get('/integrations', [SettingsController::class, 'integrations'])->name('integrations.index');
         Route::get('/settings', [SettingsController::class, 'index'])->name('settings.index');
@@ -170,16 +177,20 @@ Route::middleware(['auth', 'verified', 'tenant'])->group(function () {
 
         Route::get('/calendar', [CalendarController::class, 'index'])->name('calendar.index');
 
-        Route::get('/automation', [AutomationController::class, 'index'])->name('automation.index');
-        Route::post('/automation', [AutomationController::class, 'store'])->name('automation.store');
-        Route::post('/automation/{rule}/toggle', [AutomationController::class, 'toggle'])->name('automation.toggle');
-        Route::delete('/automation/{rule}', [AutomationController::class, 'destroy'])->name('automation.destroy');
+        Route::middleware('permission:automation.view')->group(function () {
+            Route::get('/automation', [AutomationController::class, 'index'])->name('automation.index');
+            Route::post('/automation', [AutomationController::class, 'store'])->name('automation.store');
+            Route::post('/automation/{rule}/toggle', [AutomationController::class, 'toggle'])->name('automation.toggle');
+            Route::delete('/automation/{rule}', [AutomationController::class, 'destroy'])->name('automation.destroy');
+        });
 
-        Route::get('/whatsapp', [WhatsAppController::class, 'index'])->name('whatsapp.index');
-        Route::post('/whatsapp/templates', [WhatsAppController::class, 'storeTemplate'])->name('whatsapp.templates.store');
-        Route::patch('/whatsapp/templates/{template}', [WhatsAppController::class, 'updateTemplate'])->name('whatsapp.templates.update');
-        Route::post('/whatsapp/send', [WhatsAppController::class, 'send'])->name('whatsapp.send');
-        Route::delete('/whatsapp/templates/{template}', [WhatsAppController::class, 'destroyTemplate'])->name('whatsapp.templates.destroy');
+        Route::middleware('permission:whatsapp.view')->group(function () {
+            Route::get('/whatsapp', [WhatsAppController::class, 'index'])->name('whatsapp.index');
+            Route::post('/whatsapp/templates', [WhatsAppController::class, 'storeTemplate'])->name('whatsapp.templates.store');
+            Route::patch('/whatsapp/templates/{template}', [WhatsAppController::class, 'updateTemplate'])->name('whatsapp.templates.update');
+            Route::post('/whatsapp/send', [WhatsAppController::class, 'send'])->name('whatsapp.send');
+            Route::delete('/whatsapp/templates/{template}', [WhatsAppController::class, 'destroyTemplate'])->name('whatsapp.templates.destroy');
+        });
 
         Route::get('/email', [EmailController::class, 'index'])->name('email.index');
         Route::post('/email/templates', [EmailController::class, 'storeTemplate'])->name('email.templates.store');

@@ -22,6 +22,7 @@ class FollowUp extends Model
         'uuid',
         'company_id',
         'lead_id',
+        'enquiry_id',
         'deal_id',
         'task_type_id',
         'title',
@@ -44,6 +45,11 @@ class FollowUp extends Model
     public function lead(): BelongsTo
     {
         return $this->belongsTo(Lead::class);
+    }
+
+    public function enquiry(): BelongsTo
+    {
+        return $this->belongsTo(Enquiry::class);
     }
 
     public function deal(): BelongsTo

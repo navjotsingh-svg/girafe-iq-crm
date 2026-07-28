@@ -6,29 +6,34 @@ type NavItem = {
     name: string;
     href: string;
     routeName: string;
+    permission?: string;
     isActive?: (url: string) => boolean;
 };
 
 const NAV: NavItem[] = [
-    { name: 'Dashboard', href: '/dashboard', routeName: 'dashboard' },
-    { name: 'Enquiries', href: '/enquiries', routeName: 'enquiries.index' },
-    { name: 'Leads', href: '/leads', routeName: 'leads.index' },
-    { name: 'Pipeline', href: '/pipeline', routeName: 'pipeline.index' },
-    { name: 'Customers', href: '/customers', routeName: 'customers.index' },
+    { name: 'Dashboard', href: '/dashboard', routeName: 'dashboard', permission: 'dashboard.view' },
+    { name: 'Enquiries', href: '/enquiries', routeName: 'enquiries.index', permission: 'enquiries.view' },
+    { name: 'Leads', href: '/leads', routeName: 'leads.index', permission: 'leads.view' },
+    { name: 'Pipeline', href: '/pipeline', routeName: 'pipeline.index', permission: 'pipeline.view' },
+    { name: 'Customers', href: '/customers', routeName: 'customers.index', permission: 'customers.view' },
     { name: 'Companies', href: '/companies', routeName: 'companies.index' },
     { name: 'Contacts', href: '/contacts', routeName: 'contacts.index' },
-    { name: 'Tasks', href: '/tasks', routeName: 'tasks.index' },
-    { name: 'Calendar', href: '/calendar', routeName: 'calendar.index' },
-    { name: 'Team', href: '/team', routeName: 'team.index' },
-    { name: 'Reports', href: '/reports', routeName: 'reports.index' },
-    { name: 'Automation', href: '/automation', routeName: 'automation.index' },
-    { name: 'Integrations', href: '/integrations', routeName: 'integrations.index' },
-    { name: 'WhatsApp', href: '/whatsapp', routeName: 'whatsapp.index' },
-    { name: 'Email', href: '/email', routeName: 'email.index' },
-    { name: 'Campaigns', href: '/campaigns', routeName: 'campaigns.index' },
-    { name: 'Documents', href: '/documents', routeName: 'documents.index' },
-    { name: 'Settings', href: '/settings', routeName: 'settings.index', isActive: (url) =>
-            url.startsWith('/settings') && !url.includes('tab=integrations'),
+    { name: 'Tasks', href: '/tasks', routeName: 'tasks.index', permission: 'tasks.view' },
+    { name: 'Calendar', href: '/calendar', routeName: 'calendar.index', permission: 'calendar.view' },
+    { name: 'Team', href: '/team', routeName: 'team.index', permission: 'team.view' },
+    { name: 'Reports', href: '/reports', routeName: 'reports.index', permission: 'reports.view' },
+    { name: 'Automation', href: '/automation', routeName: 'automation.index', permission: 'automation.view' },
+    { name: 'Integrations', href: '/integrations', routeName: 'integrations.index', permission: 'settings.view' },
+    { name: 'WhatsApp', href: '/whatsapp', routeName: 'whatsapp.index', permission: 'whatsapp.view' },
+    { name: 'Email', href: '/email', routeName: 'email.index', permission: 'email.view' },
+    { name: 'Campaigns', href: '/campaigns', routeName: 'campaigns.index', permission: 'campaigns.view' },
+    { name: 'Documents', href: '/documents', routeName: 'documents.index', permission: 'documents.view' },
+    {
+        name: 'Settings',
+        href: '/settings',
+        routeName: 'settings.index',
+        permission: 'settings.view',
+        isActive: (url) => url.startsWith('/settings') && !url.includes('tab=integrations'),
     },
 ];
 
@@ -66,8 +71,30 @@ export default function CrmLayout({
         if (saved) setTheme(saved);
     }, []);
 
-    const nav = useMemo(() => NAV, []);
+    const permissions: string[] = Array.isArray(user?.permissions)
+        ? user.permissions
+        : [];
+    const isAdmin = Array.isArray(user?.roles)
+        ? user.roles.some((r: string) =>
+              ['company_admin', 'super_admin', 'manager'].includes(r),
+          )
+        : false;
 
+    const can = (permission?: string) => {
+        if (!permission) {
+            return true;
+        }
+        if (isAdmin) {
+            return true;
+        }
+        return permissions.includes(permission);
+    };
+
+    const nav = useMemo(
+        () => NAV.filter((item) => can(item.permission)),
+        // eslint-disable-next-line react-hooks/exhaustive-deps
+        [permissions.join('|'), isAdmin],
+    );
     return (
         <div className="min-h-screen bg-slate-50 text-slate-900 dark:bg-slate-950 dark:text-slate-100">
             <div className="flex min-h-screen">

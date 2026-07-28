@@ -17,6 +17,8 @@ type EnquiryRow = {
     assignee: string | null;
     lead_id: number | null;
     created_at: string | null;
+    notes_count: number;
+    follow_ups_count: number;
 };
 
 type Option = { id: number; name: string };
@@ -204,9 +206,6 @@ export default function EnquiriesIndex({
                 >
                     Convert selected ({selected.length})
                 </button>
-                <span className="text-sm text-slate-500">
-                    History is kept here with status and captured time.
-                </span>
             </div>
 
             {showFilters && (
@@ -425,14 +424,15 @@ export default function EnquiriesIndex({
                             <th className="px-4 py-3">Source</th>
                             <th className="px-4 py-3">Status</th>
                             <th className="px-4 py-3">Assignee</th>
-                            <th className="px-4 py-3">History</th>
+                            <th className="px-4 py-3">Captured</th>
+                            <th className="px-4 py-3">Activity</th>
                             <th className="px-4 py-3 text-right">Action</th>
                         </tr>
                     </thead>
                     <tbody className="divide-y divide-slate-100 dark:divide-slate-800">
                         {enquiries.data.length === 0 ? (
                             <tr>
-                                <td colSpan={8} className="px-4 py-10 text-center text-slate-500">
+                                <td colSpan={9} className="px-4 py-10 text-center text-slate-500">
                                     No enquiries yet. Add your first enquiry above.
                                 </td>
                             </tr>
@@ -449,7 +449,14 @@ export default function EnquiriesIndex({
                                             />
                                         ) : null}
                                     </td>
-                                    <td className="px-4 py-3 font-medium">{e.name}</td>
+                                    <td className="px-4 py-3 font-medium">
+                                        <Link
+                                            href={route('enquiries.show', e.id)}
+                                            className="text-emerald-700 hover:text-emerald-600 dark:text-emerald-400"
+                                        >
+                                            {e.name}
+                                        </Link>
+                                    </td>
                                     <td className="px-4 py-3 text-slate-500">
                                         {e.phone || e.email || '—'}
                                     </td>
@@ -465,6 +472,27 @@ export default function EnquiriesIndex({
                                     <td className="px-4 py-3 text-slate-500">
                                         {e.created_at || '—'}
                                     </td>
+                                    <td className="px-4 py-3 text-xs text-slate-500">
+                                        {e.notes_count > 0 || e.follow_ups_count > 0 || e.message ? (
+                                            <div className="space-y-0.5">
+                                                {e.message ? <div>Has message</div> : null}
+                                                {e.notes_count > 0 ? (
+                                                    <div>
+                                                        {e.notes_count} comment
+                                                        {e.notes_count === 1 ? '' : 's'}
+                                                    </div>
+                                                ) : null}
+                                                {e.follow_ups_count > 0 ? (
+                                                    <div>
+                                                        {e.follow_ups_count} follow-up
+                                                        {e.follow_ups_count === 1 ? '' : 's'}
+                                                    </div>
+                                                ) : null}
+                                            </div>
+                                        ) : (
+                                            '—'
+                                        )}
+                                    </td>
                                     <td className="px-4 py-3 text-right">
                                         {e.status === 'converted' ? (
                                             <Link
@@ -474,13 +502,21 @@ export default function EnquiriesIndex({
                                                 View lead
                                             </Link>
                                         ) : (
-                                            <button
-                                                type="button"
-                                                onClick={() => convert(e.id)}
-                                                className="text-xs font-semibold text-emerald-600 hover:text-emerald-500"
-                                            >
-                                                Convert to lead
-                                            </button>
+                                            <div className="flex flex-col items-end gap-1">
+                                                <Link
+                                                    href={route('enquiries.show', e.id)}
+                                                    className="text-xs font-semibold text-slate-600 hover:text-emerald-600"
+                                                >
+                                                    Open
+                                                </Link>
+                                                <button
+                                                    type="button"
+                                                    onClick={() => convert(e.id)}
+                                                    className="text-xs font-semibold text-emerald-600 hover:text-emerald-500"
+                                                >
+                                                    Convert to lead
+                                                </button>
+                                            </div>
                                         )}
                                     </td>
                                 </tr>

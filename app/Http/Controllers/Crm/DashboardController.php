@@ -23,6 +23,7 @@ class DashboardController extends Controller
         $company = $user->company;
         $currency = $company->currency ?? 'INR';
         $userId = $user->id;
+        $reportsHref = $user->can('reports.view') ? route('reports.index') : null;
 
         $leadsToday = Lead::query()->whereDate('created_at', today())->count();
         $weekStart = now()->copy()->startOfWeek();
@@ -193,7 +194,7 @@ class DashboardController extends Controller
                     'label' => 'Won this month',
                     'value' => $wonThisMonth,
                     'sub' => $this->money($currency, $revenueThisMonth),
-                    'href' => route('reports.index'),
+                    'href' => $reportsHref,
                 ],
                 [
                     'key' => 'customers',
@@ -205,7 +206,7 @@ class DashboardController extends Controller
                     'key' => 'conversion',
                     'label' => 'Enquiry → lead',
                     'value' => $conversionPct.'%',
-                    'href' => route('reports.index'),
+                    'href' => $reportsHref,
                 ],
             ],
             'week' => [

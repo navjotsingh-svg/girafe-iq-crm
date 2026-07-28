@@ -88,13 +88,18 @@ class User extends Authenticatable
             return true;
         }
 
-        if ($this->hasRole('manager') || $this->hasRole('sales_manager')) {
+        if ($this->hasRole('manager')) {
             return true;
         }
 
         $roles = $this->getRoleNames();
 
-        return $roles->contains('manager') || $roles->contains('sales_manager');
+        return $roles->contains('manager');
+    }
+
+    public function canAccessAdminModules(): bool
+    {
+        return $this->canManageTeam();
     }
 
     public function canManageIntegrations(): bool

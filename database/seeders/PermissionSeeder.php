@@ -2,6 +2,8 @@
 
 namespace Database\Seeders;
 
+use App\Models\Company;
+use App\Services\Onboarding\IndustryPackService;
 use Illuminate\Database\Seeder;
 use Spatie\Permission\Models\Permission;
 use Spatie\Permission\Models\Role;
@@ -17,29 +19,38 @@ class PermissionSeeder extends Seeder
             Permission::findOrCreate($permission, 'web');
         }
 
-        // Global roles without team (templates). Tenant roles created at onboarding.
+        $all = Permission::query()->where('guard_name', 'web')->get();
+        $adminOnly = config('permissions.admin_only', []);
+        $grants = config('permissions.role_grants', []);
+
         foreach (config('permissions.roles') as $roleName) {
             $role = Role::findOrCreate($roleName, 'web');
+
             if (in_array($roleName, ['super_admin', 'company_admin'], true)) {
-                $role->syncPermissions(Permission::all());
-            } elseif ($roleName === 'viewer') {
+                $role->syncPermissions($all);
+
+                continue;
+            }
+
+            $grant = array_key_exists($roleName, $grants) ? $grants[$roleName] : [];
+
+            if ($grant === null) {
+                $role->syncPermissions($all);
+            } elseif ($grant === 'view_except_admin') {
                 $role->syncPermissions(
-                    Permission::query()->where('name', 'like', '%.view')->get()
+                    $all->filter(
+                        fn (Permission $p) => str_ends_with($p->name, '.view')
+                            && ! in_array($p->name, $adminOnly, true)
+                    )
                 );
-            } elseif ($roleName === 'sales_executive') {
+            } else {
                 $role->syncPermissions(
-                    Permission::query()->whereIn('name', [
-                        'dashboard.view',
-                        'enquiries.view', 'enquiries.create', 'enquiries.update', 'enquiries.convert',
-                        'leads.view', 'leads.create', 'leads.update',
-                        'pipeline.view', 'deals.view', 'deals.create', 'deals.update',
-                        'customers.view',
-                        'tasks.view', 'tasks.create', 'tasks.update',
-                        'calendar.view',
-                        'documents.view',
-                    ])->get()
+                    $all->whereIn('name', array_values(array_diff((array) $grant, $adminOnly)))->values()
                 );
             }
         }
+
+        $packs = app(IndustryPackService::class);
+        Company::query()->each(fn (Company $company) => $packs->syncTenantRoles($company));
     }
 }

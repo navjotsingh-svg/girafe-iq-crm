@@ -202,10 +202,20 @@ class IndustryPackService
 
     private function seedTenantRoles(Company $company): void
     {
+        $this->syncTenantRoles($company);
+    }
+
+    /**
+     * Create/update Spatie roles for a company with current permission grants.
+     */
+    public function syncTenantRoles(Company $company): void
+    {
         app(PermissionRegistrar::class)->setPermissionsTeamId($company->id);
         app(PermissionRegistrar::class)->forgetCachedPermissions();
 
         $allPermissions = $this->ensurePermissionsExist();
+        $adminOnly = config('permissions.admin_only', []);
+        $grants = config('permissions.role_grants', []);
 
         foreach (config('permissions.roles') as $roleName) {
             if ($roleName === 'super_admin') {
@@ -213,53 +223,22 @@ class IndustryPackService
             }
 
             $role = Role::findOrCreate($roleName, 'web');
+            $grant = array_key_exists($roleName, $grants) ? $grants[$roleName] : [];
 
-            if (in_array($roleName, ['company_admin', 'manager'], true)) {
+            if ($grant === null) {
                 $role->syncPermissions($allPermissions);
-            } elseif ($roleName === 'viewer') {
+            } elseif ($grant === 'view_except_admin') {
                 $role->syncPermissions(
-                    $allPermissions->filter(fn (Permission $p) => str_ends_with($p->name, '.view'))
+                    $allPermissions->filter(
+                        fn (Permission $p) => str_ends_with($p->name, '.view')
+                            && ! in_array($p->name, $adminOnly, true)
+                    )
                 );
-            } elseif ($roleName === 'sales_executive') {
-                $role->syncPermissions($this->permissionsByName([
-                    'dashboard.view',
-                    'enquiries.view', 'enquiries.create', 'enquiries.update', 'enquiries.convert',
-                    'leads.view', 'leads.create', 'leads.update',
-                    'pipeline.view', 'deals.view', 'deals.create', 'deals.update',
-                    'customers.view',
-                    'tasks.view', 'tasks.create', 'tasks.update',
-                    'calendar.view',
-                    'documents.view',
-                ], $allPermissions));
-            } elseif ($roleName === 'sales_manager') {
-                $role->syncPermissions($this->permissionsByName([
-                    'dashboard.view',
-                    'enquiries.view', 'enquiries.create', 'enquiries.update', 'enquiries.convert',
-                    'leads.view', 'leads.create', 'leads.update', 'leads.assign', 'leads.merge',
-                    'pipeline.view', 'pipeline.manage', 'deals.view', 'deals.create', 'deals.update', 'deals.delete',
-                    'customers.view', 'customers.create', 'customers.update',
-                    'tasks.view', 'tasks.create', 'tasks.update', 'tasks.delete',
-                    'calendar.view', 'calendar.manage',
-                    'team.view',
-                    'reports.view', 'reports.export',
-                    'documents.view', 'documents.manage',
-                ], $allPermissions));
-            } elseif ($roleName === 'marketing') {
-                $role->syncPermissions($this->permissionsByName([
-                    'dashboard.view',
-                    'leads.view', 'leads.create',
-                    'campaigns.view', 'campaigns.manage',
-                    'email.view', 'email.manage',
-                    'whatsapp.view',
-                    'reports.view',
-                ], $allPermissions));
-            } elseif ($roleName === 'support') {
-                $role->syncPermissions($this->permissionsByName([
-                    'dashboard.view',
-                    'customers.view', 'customers.update',
-                    'tasks.view', 'tasks.create', 'tasks.update',
-                    'documents.view',
-                ], $allPermissions));
+            } else {
+                $role->syncPermissions($this->permissionsByName(
+                    array_values(array_diff((array) $grant, $adminOnly)),
+                    $allPermissions
+                ));
             }
         }
     }

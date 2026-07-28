@@ -47,7 +47,7 @@ function useCanInviteStaff(canManageProp?: boolean): boolean {
     const roles = Array.isArray(raw) ? raw : Object.values(raw);
 
     return roles.some((r) =>
-        ['company_admin', 'super_admin', 'manager', 'sales_manager'].includes(String(r)),
+        ['company_admin', 'super_admin', 'manager'].includes(String(r)),
     );
 }
 
