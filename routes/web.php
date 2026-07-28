@@ -106,6 +106,7 @@ Route::middleware(['auth', 'verified', 'tenant'])->group(function () {
 
         Route::get('/enquiries', [EnquiryController::class, 'index'])->name('enquiries.index');
         Route::post('/enquiries', [EnquiryController::class, 'store'])->name('enquiries.store');
+        Route::post('/enquiries/bulk-convert', [EnquiryController::class, 'bulkConvert'])->name('enquiries.bulk-convert');
         Route::post('/enquiries/{enquiry}/convert', [EnquiryController::class, 'convert'])->name('enquiries.convert');
 
         Route::get('/leads', [LeadController::class, 'index'])->name('leads.index');
@@ -144,6 +145,7 @@ Route::middleware(['auth', 'verified', 'tenant'])->group(function () {
         Route::get('/integrations/meta/connect', [MetaOAuthController::class, 'connect'])->name('integrations.meta.connect');
         Route::get('/integrations/meta/callback', [MetaOAuthController::class, 'callback'])->name('integrations.meta.callback');
         Route::post('/integrations/meta/disconnect', [MetaOAuthController::class, 'disconnect'])->name('integrations.meta.disconnect');
+        Route::post('/integrations/meta/sync-existing', [MetaOAuthController::class, 'syncExisting'])->name('integrations.meta.sync-existing');
         Route::post('/settings/fields', [SettingsController::class, 'storeLeadField'])->name('settings.fields.store');
         Route::patch('/settings/fields/{field}', [SettingsController::class, 'updateLeadField'])->name('settings.fields.update');
         Route::delete('/settings/fields/{field}', [SettingsController::class, 'destroyLeadField'])->name('settings.fields.destroy');

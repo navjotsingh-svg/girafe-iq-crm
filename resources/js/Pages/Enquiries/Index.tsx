@@ -3,7 +3,7 @@ import InputLabel from '@/Components/InputLabel';
 import TextInput from '@/Components/TextInput';
 import CrmLayout from '@/Layouts/CrmLayout';
 import { Head, Link, router, useForm, usePage } from '@inertiajs/react';
-import { FormEventHandler, useEffect, useState } from 'react';
+import { FormEventHandler, useEffect, useMemo, useState } from 'react';
 
 type EnquiryRow = {
     id: number;
@@ -20,6 +20,12 @@ type EnquiryRow = {
 };
 
 type Option = { id: number; name: string };
+type Filters = {
+    search: string;
+    status: string;
+    source: string;
+    assignee: string;
+};
 
 const statusLabel: Record<string, string> = {
     new: 'New',
@@ -37,13 +43,18 @@ const statusClass: Record<string, string> = {
 
 export default function EnquiriesIndex({
     enquiries,
+    filters,
     sources,
     team,
     stats,
     openCreate,
     roundRobinEnabled = false,
 }: {
-    enquiries: { data: EnquiryRow[]; links: unknown[] };
+    enquiries: {
+        data: EnquiryRow[];
+        links: { url: string | null; label: string; active: boolean }[];
+    };
+    filters: Filters;
     sources: Option[];
     team: Option[];
     stats: { new: number; in_progress: number; converted: number };
@@ -52,10 +63,19 @@ export default function EnquiriesIndex({
 }) {
     const flash = (usePage().props as { flash?: { success?: string } }).flash;
     const [showForm, setShowForm] = useState(!!openCreate);
+    const [showFilters, setShowFilters] = useState(() =>
+        Object.values(filters).some((v) => v !== ''),
+    );
+    const [filterState, setFilterState] = useState<Filters>(filters);
+    const [selected, setSelected] = useState<number[]>([]);
 
     useEffect(() => {
         if (openCreate) setShowForm(true);
     }, [openCreate]);
+
+    useEffect(() => {
+        setFilterState(filters);
+    }, [filters]);
 
     const { data, setData, post, processing, errors, reset } = useForm({
         name: '',
@@ -79,6 +99,54 @@ export default function EnquiriesIndex({
 
     const convert = (id: number) => {
         router.post(route('enquiries.convert', id));
+    };
+
+    const applyFilters = (next?: Partial<Filters>) => {
+        const payload = { ...filterState, ...next };
+        setFilterState(payload);
+        router.get(route('enquiries.index'), payload, {
+            preserveState: true,
+            preserveScroll: true,
+            replace: true,
+        });
+    };
+
+    const clearFilters = () => {
+        const empty = { search: '', status: '', source: '', assignee: '' };
+        setFilterState(empty);
+        router.get(route('enquiries.index'), empty, {
+            preserveState: true,
+            preserveScroll: true,
+            replace: true,
+        });
+    };
+
+    const bulkConvert = () => {
+        if (selected.length === 0) return;
+        router.post(
+            route('enquiries.bulk-convert'),
+            { ids: selected },
+            {
+                preserveScroll: true,
+                onSuccess: () => setSelected([]),
+            },
+        );
+    };
+
+    const toggleSelected = (id: number) => {
+        setSelected((prev) =>
+            prev.includes(id) ? prev.filter((x) => x !== id) : [...prev, id],
+        );
+    };
+
+    const selectableIds = useMemo(
+        () => enquiries.data.filter((e) => e.status !== 'converted').map((e) => e.id),
+        [enquiries.data],
+    );
+
+    const toggleAll = () => {
+        const allSelected = selectableIds.length > 0 && selectableIds.every((id) => selected.includes(id));
+        setSelected(allSelected ? [] : selectableIds);
     };
 
     const fieldClass =
@@ -115,6 +183,119 @@ export default function EnquiriesIndex({
                 <StatCard label="In progress" value={stats.in_progress} />
                 <StatCard label="Converted" value={stats.converted} />
             </div>
+
+            <div className="mb-4 flex flex-wrap items-center gap-2">
+                <button
+                    type="button"
+                    onClick={() => setShowFilters((v) => !v)}
+                    className={`rounded-xl border px-3 py-2 text-sm font-semibold ${
+                        showFilters
+                            ? 'border-emerald-300 bg-emerald-50 text-emerald-800'
+                            : 'border-slate-200 text-slate-700 dark:border-slate-700 dark:text-slate-200'
+                    }`}
+                >
+                    Filters
+                </button>
+                <button
+                    type="button"
+                    onClick={bulkConvert}
+                    disabled={selected.length === 0}
+                    className="rounded-xl border border-emerald-200 px-3 py-2 text-sm font-semibold text-emerald-700 disabled:opacity-40"
+                >
+                    Convert selected ({selected.length})
+                </button>
+                <span className="text-sm text-slate-500">
+                    History is kept here with status and captured time.
+                </span>
+            </div>
+
+            {showFilters && (
+                <div className="mb-6 rounded-2xl border border-slate-200 bg-white p-4 dark:border-slate-800 dark:bg-slate-900">
+                    <div className="grid gap-3 lg:grid-cols-4">
+                        <div>
+                            <InputLabel htmlFor="enquiry_search" value="Search" />
+                            <TextInput
+                                id="enquiry_search"
+                                value={filterState.search}
+                                className={fieldClass}
+                                placeholder="Name, phone, email, channel..."
+                                onChange={(e) =>
+                                    setFilterState((s) => ({ ...s, search: e.target.value }))
+                                }
+                                onKeyDown={(e) => {
+                                    if (e.key === 'Enter') {
+                                        e.preventDefault();
+                                        applyFilters();
+                                    }
+                                }}
+                            />
+                        </div>
+                        <div>
+                            <InputLabel htmlFor="filter_status" value="Status" />
+                            <select
+                                id="filter_status"
+                                className={fieldClass}
+                                value={filterState.status}
+                                onChange={(e) => applyFilters({ status: e.target.value })}
+                            >
+                                <option value="">All statuses</option>
+                                <option value="new">New</option>
+                                <option value="in_progress">In progress</option>
+                                <option value="converted">Converted</option>
+                                <option value="junk">Junk</option>
+                            </select>
+                        </div>
+                        <div>
+                            <InputLabel htmlFor="filter_source" value="Source" />
+                            <select
+                                id="filter_source"
+                                className={fieldClass}
+                                value={filterState.source}
+                                onChange={(e) => applyFilters({ source: e.target.value })}
+                            >
+                                <option value="">All sources</option>
+                                {sources.map((s) => (
+                                    <option key={s.id} value={s.id}>
+                                        {s.name}
+                                    </option>
+                                ))}
+                            </select>
+                        </div>
+                        <div>
+                            <InputLabel htmlFor="filter_assignee" value="Assignee" />
+                            <select
+                                id="filter_assignee"
+                                className={fieldClass}
+                                value={filterState.assignee}
+                                onChange={(e) => applyFilters({ assignee: e.target.value })}
+                            >
+                                <option value="">All team</option>
+                                {team.map((u) => (
+                                    <option key={u.id} value={u.id}>
+                                        {u.name}
+                                    </option>
+                                ))}
+                            </select>
+                        </div>
+                    </div>
+                    <div className="mt-3 flex flex-wrap gap-2">
+                        <button
+                            type="button"
+                            onClick={() => applyFilters()}
+                            className="rounded-lg bg-slate-900 px-3 py-1.5 text-xs font-semibold text-white dark:bg-emerald-600"
+                        >
+                            Search
+                        </button>
+                        <button
+                            type="button"
+                            onClick={clearFilters}
+                            className="rounded-lg border border-slate-200 px-3 py-1.5 text-xs font-semibold text-slate-600 dark:border-slate-700 dark:text-slate-300"
+                        >
+                            Clear
+                        </button>
+                    </div>
+                </div>
+            )}
 
             {showForm && (
                 <form
@@ -228,24 +409,46 @@ export default function EnquiriesIndex({
                 <table className="min-w-full text-sm">
                     <thead className="bg-slate-50 text-left text-xs uppercase text-slate-500 dark:bg-slate-800/50">
                         <tr>
+                            <th className="px-4 py-3">
+                                <input
+                                    type="checkbox"
+                                    checked={
+                                        selectableIds.length > 0 &&
+                                        selectableIds.every((id) => selected.includes(id))
+                                    }
+                                    onChange={toggleAll}
+                                    className="rounded border-slate-300 text-emerald-600 focus:ring-emerald-500"
+                                />
+                            </th>
                             <th className="px-4 py-3">Name</th>
                             <th className="px-4 py-3">Contact</th>
                             <th className="px-4 py-3">Source</th>
                             <th className="px-4 py-3">Status</th>
                             <th className="px-4 py-3">Assignee</th>
+                            <th className="px-4 py-3">History</th>
                             <th className="px-4 py-3 text-right">Action</th>
                         </tr>
                     </thead>
                     <tbody className="divide-y divide-slate-100 dark:divide-slate-800">
                         {enquiries.data.length === 0 ? (
                             <tr>
-                                <td colSpan={6} className="px-4 py-10 text-center text-slate-500">
+                                <td colSpan={8} className="px-4 py-10 text-center text-slate-500">
                                     No enquiries yet. Add your first enquiry above.
                                 </td>
                             </tr>
                         ) : (
                             enquiries.data.map((e) => (
                                 <tr key={e.id}>
+                                    <td className="px-4 py-3">
+                                        {e.status !== 'converted' ? (
+                                            <input
+                                                type="checkbox"
+                                                checked={selected.includes(e.id)}
+                                                onChange={() => toggleSelected(e.id)}
+                                                className="rounded border-slate-300 text-emerald-600 focus:ring-emerald-500"
+                                            />
+                                        ) : null}
+                                    </td>
                                     <td className="px-4 py-3 font-medium">{e.name}</td>
                                     <td className="px-4 py-3 text-slate-500">
                                         {e.phone || e.email || '—'}
@@ -259,13 +462,16 @@ export default function EnquiriesIndex({
                                         </span>
                                     </td>
                                     <td className="px-4 py-3">{e.assignee || '—'}</td>
+                                    <td className="px-4 py-3 text-slate-500">
+                                        {e.created_at || '—'}
+                                    </td>
                                     <td className="px-4 py-3 text-right">
                                         {e.status === 'converted' ? (
                                             <Link
-                                                href={route('leads.index')}
+                                                href={e.lead_id ? route('leads.show', e.lead_id) : route('leads.index')}
                                                 className="text-xs font-semibold text-emerald-600"
                                             >
-                                                View leads
+                                                View lead
                                             </Link>
                                         ) : (
                                             <button
@@ -283,6 +489,31 @@ export default function EnquiriesIndex({
                     </tbody>
                 </table>
             </div>
+
+            {enquiries.links?.length > 1 && (
+                <div className="mt-4 flex flex-wrap gap-2">
+                    {enquiries.links.map((link, i) => (
+                        <button
+                            key={`${link.label}-${i}`}
+                            type="button"
+                            disabled={!link.url}
+                            onClick={() =>
+                                link.url &&
+                                router.visit(link.url, {
+                                    preserveScroll: true,
+                                    preserveState: true,
+                                })
+                            }
+                            className={`rounded-lg px-3 py-1.5 text-sm ${
+                                link.active
+                                    ? 'bg-emerald-600 text-white'
+                                    : 'bg-slate-100 text-slate-600 disabled:opacity-40 dark:bg-slate-800 dark:text-slate-300'
+                            }`}
+                            dangerouslySetInnerHTML={{ __html: link.label }}
+                        />
+                    ))}
+                </div>
+            )}
         </CrmLayout>
     );
 }

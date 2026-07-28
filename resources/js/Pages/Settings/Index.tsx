@@ -1273,27 +1273,40 @@ function IntegrationsTab({ integrations }: { integrations: IntegrationCard[] }) 
 
                         {meta.enabled ? (
                             canManage ? (
-                            <form method="post" action={meta.disconnect_url || '#'}>
-                                <input
-                                    type="hidden"
-                                    name="_token"
-                                    value={
-                                        (document.querySelector('meta[name="csrf-token"]') as HTMLMetaElement)
-                                            ?.content || ''
-                                    }
-                                />
+                            <div className="flex flex-wrap gap-2">
                                 <button
                                     type="button"
                                     onClick={() =>
-                                        router.post(route('integrations.meta.disconnect'), {}, {
+                                        router.post(route('integrations.meta.sync-existing'), {}, {
                                             preserveScroll: true,
                                         })
                                     }
-                                    className="rounded-xl border border-rose-200 px-4 py-2 text-sm font-semibold text-rose-600 hover:bg-rose-50"
+                                    className="rounded-xl border border-emerald-200 px-4 py-2 text-sm font-semibold text-emerald-700 hover:bg-emerald-50"
                                 >
-                                    Disconnect
+                                    Sync existing leads
                                 </button>
-                            </form>
+                                <form method="post" action={meta.disconnect_url || '#'}>
+                                    <input
+                                        type="hidden"
+                                        name="_token"
+                                        value={
+                                            (document.querySelector('meta[name="csrf-token"]') as HTMLMetaElement)
+                                                ?.content || ''
+                                        }
+                                    />
+                                    <button
+                                        type="button"
+                                        onClick={() =>
+                                            router.post(route('integrations.meta.disconnect'), {}, {
+                                                preserveScroll: true,
+                                            })
+                                        }
+                                        className="rounded-xl border border-rose-200 px-4 py-2 text-sm font-semibold text-rose-600 hover:bg-rose-50"
+                                    >
+                                        Disconnect
+                                    </button>
+                                </form>
+                            </div>
                             ) : (
                                 <span className="rounded-full bg-emerald-100 px-3 py-1 text-xs font-semibold text-emerald-800">
                                     Connected
@@ -1346,6 +1359,11 @@ function IntegrationsTab({ integrations }: { integrations: IntegrationCard[] }) 
                                     ? ` · ${new Date(meta.connected_at).toLocaleString()}`
                                     : ''}
                             </div>
+
+                            <p className="text-xs text-slate-500">
+                                Use <strong>Sync existing leads</strong> to import older Meta lead
+                                form submissions from the recent sync window into Enquiries.
+                            </p>
 
                             {(meta.meta_pages?.length ?? 0) > 0 ? (
                                 <div className="overflow-hidden rounded-xl border border-slate-200 dark:border-slate-800">

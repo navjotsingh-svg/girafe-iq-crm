@@ -4,7 +4,9 @@ namespace App\Services\Integrations;
 
 use App\Models\Company;
 use App\Models\MetaPage;
+use App\Services\Crm\LeadIngestService;
 use App\Services\Tenant\ActivityLogger;
+use Carbon\Carbon;
 use Illuminate\Support\Facades\Http;
 use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Str;
@@ -153,6 +155,38 @@ class MetaOAuthService
         $this->logger->log('integrations.meta_disconnected', $company);
     }
 
+    public function syncExistingLeads(Company $company, LeadIngestService $ingest, int $days = 30): int
+    {
+        $created = 0;
+        $since = now()->subDays(max(1, $days))->startOfDay();
+
+        $pages = MetaPage::query()
+            ->where('company_id', $company->id)
+            ->where('is_active', true)
+            ->get();
+
+        foreach ($pages as $page) {
+            foreach ($this->fetchPageLeads($page, $since) as $lead) {
+                $platform = $page->instagram_business_id ? 'instagram' : 'facebook_ads';
+                $enquiry = $ingest->ingest($company, $platform, $lead, [
+                    'page_id' => $page->page_id,
+                    'synced_existing' => true,
+                ]);
+
+                if ($enquiry->wasRecentlyCreated) {
+                    $created++;
+                }
+            }
+        }
+
+        $this->logger->log('integrations.meta_existing_synced', $company, [
+            'created' => $created,
+            'days' => $days,
+        ]);
+
+        return $created;
+    }
+
     public function subscribeLeadgen(MetaPage $page): void
     {
         $version = config('services.meta.graph_version', 'v19.0');
@@ -227,6 +261,81 @@ class MetaOAuthService
         }
 
         return $response->json('data', []);
+    }
+
+    /**
+     * @return list<array{name: string, email?: string|null, phone?: string|null, message?: string|null, external_id: string}>
+     */
+    private function fetchPageLeads(MetaPage $page, Carbon $since): array
+    {
+        $version = config('services.meta.graph_version', 'v19.0');
+        $response = Http::timeout(30)->get(
+            "https://graph.facebook.com/{$version}/{$page->page_id}/leadgen_forms",
+            [
+                'access_token' => $page->page_access_token,
+                'fields' => 'id,name,leads.limit(100){id,created_time,field_data}',
+                'limit' => 100,
+            ]
+        );
+
+        if (! $response->successful()) {
+            throw new RuntimeException('Failed to fetch Meta lead forms: '.$response->body());
+        }
+
+        $forms = $response->json('data', []);
+        $rows = [];
+
+        foreach ($forms as $form) {
+            foreach (($form['leads']['data'] ?? []) as $lead) {
+                $createdAt = isset($lead['created_time']) ? Carbon::parse($lead['created_time']) : null;
+                if ($createdAt && $createdAt->lt($since)) {
+                    continue;
+                }
+
+                $mapped = $this->mapFieldDataToLead($lead['field_data'] ?? [], (string) ($lead['id'] ?? ''));
+                if ($mapped !== null) {
+                    $rows[] = $mapped;
+                }
+            }
+        }
+
+        return $rows;
+    }
+
+    /**
+     * @param  list<array<string, mixed>>  $fields
+     * @return array{name: string, email?: string|null, phone?: string|null, message?: string|null, external_id: string}|null
+     */
+    private function mapFieldDataToLead(array $fields, string $leadId): ?array
+    {
+        if ($leadId === '') {
+            return null;
+        }
+
+        $collection = collect($fields);
+        $get = function (array $keys) use ($collection) {
+            foreach ($keys as $key) {
+                $match = $collection->first(
+                    fn ($f) => strtolower((string) ($f['name'] ?? '')) === $key
+                );
+                if ($match) {
+                    return $match['values'][0] ?? null;
+                }
+            }
+
+            return null;
+        };
+
+        $fullName = $get(['full_name', 'name'])
+            ?: trim(($get(['first_name']) ?? '').' '.($get(['last_name']) ?? ''));
+
+        return [
+            'name' => $fullName ?: 'Facebook Lead',
+            'email' => $get(['email', 'email_address']),
+            'phone' => $get(['phone_number', 'phone', 'mobile']),
+            'message' => $get(['message', 'notes', 'comments']),
+            'external_id' => $leadId,
+        ];
     }
 
     public function makeState(Company $company): string

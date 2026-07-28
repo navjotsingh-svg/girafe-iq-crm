@@ -17,11 +17,48 @@ class EnquiryController extends Controller
     public function index(Request $request): Response
     {
         $company = $request->user()->company;
+        $filters = [
+            'search' => trim((string) $request->get('search', '')),
+            'status' => (string) $request->get('status', ''),
+            'source' => (string) $request->get('source', ''),
+            'assignee' => (string) $request->get('assignee', ''),
+        ];
 
-        $enquiries = Enquiry::query()
+        $query = Enquiry::query()
             ->with(['source:id,name', 'assignee:id,name', 'lead:id,uuid'])
-            ->latest()
+            ->latest();
+
+        if ($filters['search'] !== '') {
+            $search = $filters['search'];
+            $query->where(function ($q) use ($search) {
+                $q->where('name', 'like', "%{$search}%")
+                    ->orWhere('email', 'like', "%{$search}%")
+                    ->orWhere('phone', 'like', "%{$search}%")
+                    ->orWhere('channel', 'like', "%{$search}%")
+                    ->orWhere('message', 'like', "%{$search}%");
+            });
+        }
+
+        if (in_array($filters['status'], [
+            Enquiry::STATUS_NEW,
+            Enquiry::STATUS_IN_PROGRESS,
+            Enquiry::STATUS_CONVERTED,
+            Enquiry::STATUS_JUNK,
+        ], true)) {
+            $query->where('status', $filters['status']);
+        }
+
+        if ($filters['source'] !== '') {
+            $query->where('lead_source_id', (int) $filters['source']);
+        }
+
+        if ($filters['assignee'] !== '') {
+            $query->where('assigned_user_id', (int) $filters['assignee']);
+        }
+
+        $enquiries = $query
             ->paginate(15)
+            ->withQueryString()
             ->through(fn (Enquiry $e) => [
                 'id' => $e->id,
                 'uuid' => $e->uuid,
@@ -34,11 +71,12 @@ class EnquiryController extends Controller
                 'source' => $e->source?->name,
                 'assignee' => $e->assignee?->name,
                 'lead_id' => $e->lead_id,
-                'created_at' => $e->created_at?->toIso8601String(),
+                'created_at' => $e->created_at?->diffForHumans(),
             ]);
 
         return Inertia::render('Enquiries/Index', [
             'enquiries' => $enquiries,
+            'filters' => $filters,
             'sources' => LeadSource::query()->orderBy('sort_order')->get(['id', 'name']),
             'team' => User::query()
                 ->where('company_id', $company->id)
@@ -86,6 +124,33 @@ class EnquiryController extends Controller
 
         return redirect()->route('leads.index')
             ->with('success', "Lead created from enquiry: {$lead->name}");
+    }
+
+    public function bulkConvert(Request $request, EnquiryService $service): RedirectResponse
+    {
+        $data = $request->validate([
+            'ids' => 'required|array|min:1',
+            'ids.*' => 'integer|exists:enquiries,id',
+        ]);
+
+        $enquiries = Enquiry::query()
+            ->whereIn('id', $data['ids'])
+            ->get();
+
+        $converted = 0;
+        foreach ($enquiries as $enquiry) {
+            $this->authorizeEnquiry($enquiry, $request);
+            if ($enquiry->isConverted()) {
+                continue;
+            }
+            $service->convertToLead($enquiry, $request->user());
+            $converted++;
+        }
+
+        return redirect()->route('enquiries.index')
+            ->with('success', $converted > 0
+                ? "{$converted} enquiry(s) converted to leads."
+                : 'Selected enquiries were already converted.');
     }
 
     private function authorizeEnquiry(Enquiry $enquiry, Request $request): void

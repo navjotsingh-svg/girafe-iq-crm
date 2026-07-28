@@ -118,4 +118,35 @@ class MetaOAuthController extends Controller
             ->route('integrations.index')
             ->with('success', 'Meta account disconnected.');
     }
+
+    public function syncExisting(Request $request, MetaOAuthService $meta): RedirectResponse
+    {
+        $user = $request->user();
+
+        if (! $user) {
+            return redirect()->route('login');
+        }
+
+        $user->syncPermissionTeam();
+
+        if (! $user->canManageIntegrations()) {
+            return redirect()
+                ->route('integrations.index')
+                ->with('error', 'Only company admins or managers can sync Meta leads.');
+        }
+
+        try {
+            $created = $meta->syncExistingLeads($user->company, app(\App\Services\Crm\LeadIngestService::class));
+
+            return redirect()
+                ->route('integrations.index')
+                ->with('success', $created > 0
+                    ? "Meta sync complete — {$created} existing lead(s) imported into Enquiries."
+                    : 'Meta sync complete — no new existing leads found in the sync window.');
+        } catch (Throwable $e) {
+            return redirect()
+                ->route('integrations.index')
+                ->with('error', 'Meta sync failed: '.$e->getMessage());
+        }
+    }
 }
