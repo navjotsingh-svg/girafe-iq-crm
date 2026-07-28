@@ -11,7 +11,7 @@ type NavItem = {
 };
 
 const NAV: NavItem[] = [
-    { name: 'Dashboard', href: '/dashboard', routeName: 'dashboard', permission: 'dashboard.view' },
+    { name: 'Dashboard', href: '/dashboard', routeName: 'dashboard' },
     { name: 'Enquiries', href: '/enquiries', routeName: 'enquiries.index', permission: 'enquiries.view' },
     { name: 'Leads', href: '/leads', routeName: 'leads.index', permission: 'leads.view' },
     { name: 'Pipeline', href: '/pipeline', routeName: 'pipeline.index', permission: 'pipeline.view' },
@@ -114,9 +114,14 @@ export default function CrmLayout({
                     </div>
                     <nav className="h-[calc(100vh-4rem)] space-y-0.5 overflow-y-auto p-3">
                         {nav.map((item) => {
-                            const active = item.isActive
-                                ? item.isActive(inertiaPage.url)
-                                : route().current(item.routeName);
+                            let active = false;
+                            try {
+                                active = item.isActive
+                                    ? item.isActive(inertiaPage.url)
+                                    : Boolean(route().current(item.routeName));
+                            } catch {
+                                active = inertiaPage.url.startsWith(item.href);
+                            }
                             return (
                                 <Link
                                     key={item.href}

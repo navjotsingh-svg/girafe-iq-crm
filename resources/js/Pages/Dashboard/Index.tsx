@@ -16,7 +16,7 @@ type Stat = {
     label: string;
     value: string | number;
     sub?: string;
-    href: string;
+    href: string | null;
 };
 
 type TaskRow = {
@@ -193,21 +193,36 @@ export default function DashboardIndex({
             </div>
 
             <div className="mt-4 grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
-                {stats.map((stat) => (
-                    <Link
-                        key={stat.key}
-                        href={stat.href}
-                        className="rounded-xl border border-slate-200 bg-white px-4 py-3 transition hover:border-emerald-300 dark:border-slate-800 dark:bg-slate-900 dark:hover:border-emerald-800"
-                    >
-                        <div className="text-[11px] font-medium uppercase tracking-wide text-slate-400">
-                            {stat.label}
+                {stats.map((stat) =>
+                    stat.href ? (
+                        <Link
+                            key={stat.key}
+                            href={stat.href}
+                            className="rounded-xl border border-slate-200 bg-white px-4 py-3 transition hover:border-emerald-300 dark:border-slate-800 dark:bg-slate-900 dark:hover:border-emerald-800"
+                        >
+                            <div className="text-[11px] font-medium uppercase tracking-wide text-slate-400">
+                                {stat.label}
+                            </div>
+                            <div className="mt-1 text-xl font-bold tabular-nums">{stat.value}</div>
+                            {stat.sub && (
+                                <div className="mt-0.5 text-xs text-slate-500">{stat.sub}</div>
+                            )}
+                        </Link>
+                    ) : (
+                        <div
+                            key={stat.key}
+                            className="rounded-xl border border-slate-200 bg-white px-4 py-3 dark:border-slate-800 dark:bg-slate-900"
+                        >
+                            <div className="text-[11px] font-medium uppercase tracking-wide text-slate-400">
+                                {stat.label}
+                            </div>
+                            <div className="mt-1 text-xl font-bold tabular-nums">{stat.value}</div>
+                            {stat.sub && (
+                                <div className="mt-0.5 text-xs text-slate-500">{stat.sub}</div>
+                            )}
                         </div>
-                        <div className="mt-1 text-xl font-bold tabular-nums">{stat.value}</div>
-                        {stat.sub && (
-                            <div className="mt-0.5 text-xs text-slate-500">{stat.sub}</div>
-                        )}
-                    </Link>
-                ))}
+                    ),
+                )}
             </div>
 
             <div className="mt-6 grid gap-4 xl:grid-cols-3">

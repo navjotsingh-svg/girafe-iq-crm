@@ -23,7 +23,13 @@ class DashboardController extends Controller
         $company = $user->company;
         $currency = $company->currency ?? 'INR';
         $userId = $user->id;
-        $reportsHref = $user->can('reports.view') ? route('reports.index') : null;
+        $canReports = false;
+        try {
+            $canReports = $user->can('reports.view');
+        } catch (\Throwable) {
+            $canReports = false;
+        }
+        $reportsHref = $canReports ? route('reports.index') : route('pipeline.index');
 
         $leadsToday = Lead::query()->whereDate('created_at', today())->count();
         $weekStart = now()->copy()->startOfWeek();

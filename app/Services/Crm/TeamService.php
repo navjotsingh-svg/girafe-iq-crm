@@ -6,6 +6,7 @@ use App\Mail\TeamInviteMail;
 use App\Models\Company;
 use App\Models\TeamInvitation;
 use App\Models\User;
+use App\Services\Onboarding\IndustryPackService;
 use App\Services\Tenant\ActivityLogger;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Log;
@@ -18,7 +19,8 @@ use Throwable;
 class TeamService
 {
     public function __construct(
-        private ActivityLogger $logger
+        private ActivityLogger $logger,
+        private IndustryPackService $industryPacks,
     ) {}
 
     /**
@@ -93,6 +95,9 @@ class TeamService
         return DB::transaction(function () use ($invitation, $data) {
             $company = $invitation->company;
             app(PermissionRegistrar::class)->setPermissionsTeamId($company->id);
+
+            // Ensure role permissions exist for this company before assigning.
+            $this->industryPacks->syncTenantRoles($company);
 
             $user = User::create([
                 'company_id' => $company->id,
