@@ -7,6 +7,7 @@ type NavItem = {
     href: string;
     routeName: string;
     permission?: string;
+    adminOnly?: boolean;
     isActive?: (url: string) => boolean;
 };
 
@@ -16,15 +17,15 @@ const NAV: NavItem[] = [
     { name: 'Leads', href: '/leads', routeName: 'leads.index', permission: 'leads.view' },
     { name: 'Pipeline', href: '/pipeline', routeName: 'pipeline.index', permission: 'pipeline.view' },
     { name: 'Customers', href: '/customers', routeName: 'customers.index', permission: 'customers.view' },
-    { name: 'Companies', href: '/companies', routeName: 'companies.index' },
-    { name: 'Contacts', href: '/contacts', routeName: 'contacts.index' },
+    { name: 'Companies', href: '/companies', routeName: 'companies.index', permission: 'leads.view' },
+    { name: 'Contacts', href: '/contacts', routeName: 'contacts.index', permission: 'leads.view' },
     { name: 'Tasks', href: '/tasks', routeName: 'tasks.index', permission: 'tasks.view' },
     { name: 'Calendar', href: '/calendar', routeName: 'calendar.index', permission: 'calendar.view' },
-    { name: 'Team', href: '/team', routeName: 'team.index', permission: 'team.view' },
-    { name: 'Reports', href: '/reports', routeName: 'reports.index', permission: 'reports.view' },
-    { name: 'Automation', href: '/automation', routeName: 'automation.index', permission: 'automation.view' },
-    { name: 'Integrations', href: '/integrations', routeName: 'integrations.index', permission: 'settings.view' },
-    { name: 'WhatsApp', href: '/whatsapp', routeName: 'whatsapp.index', permission: 'whatsapp.view' },
+    { name: 'Team', href: '/team', routeName: 'team.index', permission: 'team.view', adminOnly: true },
+    { name: 'Reports', href: '/reports', routeName: 'reports.index', permission: 'reports.view', adminOnly: true },
+    { name: 'Automation', href: '/automation', routeName: 'automation.index', permission: 'automation.view', adminOnly: true },
+    { name: 'Integrations', href: '/integrations', routeName: 'integrations.index', permission: 'settings.view', adminOnly: true },
+    { name: 'WhatsApp', href: '/whatsapp', routeName: 'whatsapp.index', permission: 'whatsapp.view', adminOnly: true },
     { name: 'Email', href: '/email', routeName: 'email.index', permission: 'email.view' },
     { name: 'Campaigns', href: '/campaigns', routeName: 'campaigns.index', permission: 'campaigns.view' },
     { name: 'Documents', href: '/documents', routeName: 'documents.index', permission: 'documents.view' },
@@ -33,6 +34,7 @@ const NAV: NavItem[] = [
         href: '/settings',
         routeName: 'settings.index',
         permission: 'settings.view',
+        adminOnly: true,
         isActive: (url) => url.startsWith('/settings') && !url.includes('tab=integrations'),
     },
 ];
@@ -74,26 +76,45 @@ export default function CrmLayout({
     const permissions: string[] = Array.isArray(user?.permissions)
         ? user.permissions
         : [];
-    const isAdmin = Array.isArray(user?.roles)
-        ? user.roles.some((r: string) =>
-              ['company_admin', 'super_admin', 'manager'].includes(r),
-          )
-        : false;
+    const roles: string[] = Array.isArray(user?.roles)
+        ? user.roles.map((r: string) => String(r))
+        : Object.values(user?.roles ?? {}).map((r) => String(r));
+    const isAdmin =
+        user?.can_access_admin_modules === true ||
+        user?.can_manage_team === true ||
+        roles.some((r) =>
+            ['company_admin', 'super_admin', 'manager'].includes(r),
+        );
 
-    const can = (permission?: string) => {
-        if (!permission) {
+    const can = (item: NavItem) => {
+        if (item.adminOnly) {
+            return isAdmin || (item.permission ? permissions.includes(item.permission) : false);
+        }
+        if (!item.permission) {
             return true;
         }
         if (isAdmin) {
             return true;
         }
-        return permissions.includes(permission);
+        // Staff: only show pages they actually have permission for
+        if (permissions.length === 0) {
+            return [
+                'enquiries.view',
+                'leads.view',
+                'pipeline.view',
+                'customers.view',
+                'tasks.view',
+                'calendar.view',
+                'documents.view',
+            ].includes(item.permission);
+        }
+        return permissions.includes(item.permission);
     };
 
     const nav = useMemo(
-        () => NAV.filter((item) => can(item.permission)),
+        () => NAV.filter((item) => can(item)),
         // eslint-disable-next-line react-hooks/exhaustive-deps
-        [permissions.join('|'), isAdmin],
+        [permissions.join('|'), roles.join('|'), isAdmin],
     );
     return (
         <div className="min-h-screen bg-slate-50 text-slate-900 dark:bg-slate-950 dark:text-slate-100">

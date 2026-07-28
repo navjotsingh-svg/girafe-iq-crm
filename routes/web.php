@@ -141,7 +141,7 @@ Route::middleware(['auth', 'verified', 'tenant'])->group(function () {
         Route::post('/customers', [CustomerController::class, 'store'])->name('customers.store');
         Route::patch('/customers/{customer}', [CustomerController::class, 'update'])->name('customers.update');
 
-        Route::middleware('permission:team.view')->group(function () {
+        Route::middleware('admin.module:team.view')->group(function () {
             Route::get('/team', [TeamController::class, 'index'])->name('team.index');
             Route::post('/team', [TeamController::class, 'store'])->name('team.store');
             Route::delete('/team/invites/{invitation}', [TeamController::class, 'cancelInvite'])->name('team.invites.cancel');
@@ -150,25 +150,27 @@ Route::middleware(['auth', 'verified', 'tenant'])->group(function () {
         });
 
         Route::get('/reports', [ReportController::class, 'index'])
-            ->middleware('permission:reports.view')
+            ->middleware('admin.module:reports.view')
             ->name('reports.index');
 
-        Route::get('/integrations', [SettingsController::class, 'integrations'])->name('integrations.index');
-        Route::get('/settings', [SettingsController::class, 'index'])->name('settings.index');
-        Route::patch('/settings/company', [SettingsController::class, 'updateCompany'])->name('settings.company');
-        Route::patch('/settings/providers', [SettingsController::class, 'updateProviders'])->name('settings.providers');
-        Route::patch('/settings/lead-assignment', [SettingsController::class, 'updateLeadAssignment'])->name('settings.lead-assignment');
-        Route::patch('/settings/integrations', [SettingsController::class, 'updateIntegration'])->name('settings.integrations');
-        Route::get('/integrations/meta/connect', [MetaOAuthController::class, 'connect'])->name('integrations.meta.connect');
-        Route::get('/integrations/meta/callback', [MetaOAuthController::class, 'callback'])->name('integrations.meta.callback');
-        Route::post('/integrations/meta/disconnect', [MetaOAuthController::class, 'disconnect'])->name('integrations.meta.disconnect');
-        Route::post('/integrations/meta/sync-existing', [MetaOAuthController::class, 'syncExisting'])->name('integrations.meta.sync-existing');
-        Route::post('/settings/fields', [SettingsController::class, 'storeLeadField'])->name('settings.fields.store');
-        Route::patch('/settings/fields/{field}', [SettingsController::class, 'updateLeadField'])->name('settings.fields.update');
-        Route::delete('/settings/fields/{field}', [SettingsController::class, 'destroyLeadField'])->name('settings.fields.destroy');
-        Route::post('/settings/stages', [SettingsController::class, 'storePipelineStage'])->name('settings.stages.store');
-        Route::patch('/settings/stages/{stage}', [SettingsController::class, 'updatePipelineStage'])->name('settings.stages.update');
-        Route::delete('/settings/stages/{stage}', [SettingsController::class, 'destroyPipelineStage'])->name('settings.stages.destroy');
+        Route::middleware('admin.module:settings.view')->group(function () {
+            Route::get('/integrations', [SettingsController::class, 'integrations'])->name('integrations.index');
+            Route::get('/settings', [SettingsController::class, 'index'])->name('settings.index');
+            Route::patch('/settings/company', [SettingsController::class, 'updateCompany'])->name('settings.company');
+            Route::patch('/settings/providers', [SettingsController::class, 'updateProviders'])->name('settings.providers');
+            Route::patch('/settings/lead-assignment', [SettingsController::class, 'updateLeadAssignment'])->name('settings.lead-assignment');
+            Route::patch('/settings/integrations', [SettingsController::class, 'updateIntegration'])->name('settings.integrations');
+            Route::get('/integrations/meta/connect', [MetaOAuthController::class, 'connect'])->name('integrations.meta.connect');
+            Route::get('/integrations/meta/callback', [MetaOAuthController::class, 'callback'])->name('integrations.meta.callback');
+            Route::post('/integrations/meta/disconnect', [MetaOAuthController::class, 'disconnect'])->name('integrations.meta.disconnect');
+            Route::post('/integrations/meta/sync-existing', [MetaOAuthController::class, 'syncExisting'])->name('integrations.meta.sync-existing');
+            Route::post('/settings/fields', [SettingsController::class, 'storeLeadField'])->name('settings.fields.store');
+            Route::patch('/settings/fields/{field}', [SettingsController::class, 'updateLeadField'])->name('settings.fields.update');
+            Route::delete('/settings/fields/{field}', [SettingsController::class, 'destroyLeadField'])->name('settings.fields.destroy');
+            Route::post('/settings/stages', [SettingsController::class, 'storePipelineStage'])->name('settings.stages.store');
+            Route::patch('/settings/stages/{stage}', [SettingsController::class, 'updatePipelineStage'])->name('settings.stages.update');
+            Route::delete('/settings/stages/{stage}', [SettingsController::class, 'destroyPipelineStage'])->name('settings.stages.destroy');
+        });
 
         Route::get('/documents', [DocumentController::class, 'index'])->name('documents.index');
         Route::post('/documents', [DocumentController::class, 'store'])->name('documents.store');
@@ -177,14 +179,14 @@ Route::middleware(['auth', 'verified', 'tenant'])->group(function () {
 
         Route::get('/calendar', [CalendarController::class, 'index'])->name('calendar.index');
 
-        Route::middleware('permission:automation.view')->group(function () {
+        Route::middleware('admin.module:automation.view')->group(function () {
             Route::get('/automation', [AutomationController::class, 'index'])->name('automation.index');
             Route::post('/automation', [AutomationController::class, 'store'])->name('automation.store');
             Route::post('/automation/{rule}/toggle', [AutomationController::class, 'toggle'])->name('automation.toggle');
             Route::delete('/automation/{rule}', [AutomationController::class, 'destroy'])->name('automation.destroy');
         });
 
-        Route::middleware('permission:whatsapp.view')->group(function () {
+        Route::middleware('admin.module:whatsapp.view')->group(function () {
             Route::get('/whatsapp', [WhatsAppController::class, 'index'])->name('whatsapp.index');
             Route::post('/whatsapp/templates', [WhatsAppController::class, 'storeTemplate'])->name('whatsapp.templates.store');
             Route::patch('/whatsapp/templates/{template}', [WhatsAppController::class, 'updateTemplate'])->name('whatsapp.templates.update');
