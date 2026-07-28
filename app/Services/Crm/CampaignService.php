@@ -31,16 +31,20 @@ class CampaignService
 
         $audienceCount = $this->countAudience($company, $data['audience'] ?? 'all_leads');
 
+        $scheduledAt = $data['scheduled_at'] ?? null;
+
         $campaign = Campaign::create([
             'company_id' => $company->id,
             'name' => $data['name'],
             'channel' => $data['channel'],
-            'status' => Campaign::STATUS_DRAFT,
+            'status' => $scheduledAt
+                ? Campaign::STATUS_ACTIVE
+                : Campaign::STATUS_DRAFT,
             'audience' => $data['audience'] ?? 'all_leads',
             'template_id' => $template?->id,
             'subject' => $data['subject'] ?? $template?->subject,
             'body' => $data['body'] ?? $template?->body,
-            'scheduled_at' => $data['scheduled_at'] ?? null,
+            'scheduled_at' => $scheduledAt,
             'audience_count' => $audienceCount,
             'created_by' => $user->id,
         ]);

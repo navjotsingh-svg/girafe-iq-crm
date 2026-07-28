@@ -20,6 +20,7 @@ use App\Http\Controllers\Crm\TeamController;
 use App\Http\Controllers\Crm\WhatsAppController;
 use App\Http\Controllers\Onboarding\OnboardingController;
 use App\Http\Controllers\ProfileController;
+use App\Http\Controllers\CronController;
 use App\Http\Controllers\Webhooks\LeadWebhookController;
 use Illuminate\Support\Facades\Route;
 use Inertia\Inertia;
@@ -73,6 +74,15 @@ Route::get('/invites/{token}', [\App\Http\Controllers\Auth\TeamInviteController:
 Route::post('/invites/{token}', [\App\Http\Controllers\Auth\TeamInviteController::class, 'store'])
     ->where('token', '[A-Za-z0-9]+')
     ->name('invites.accept');
+
+/*
+| Third-party HTTP cron — hit every minute from cron-job.org / EasyCron / etc.
+*/
+Route::match(['get', 'post'], '/cron', [CronController::class, 'index'])
+    ->name('cron.index');
+Route::match(['get', 'post'], '/cron/run/{job?}', [CronController::class, 'run'])
+    ->where('job', 'messages|campaigns|invitations|trials|followups')
+    ->name('cron.run');
 
 /*
 | Public lead webhooks — Meta app (all tenants) + per-company Zapier/Google/Website
