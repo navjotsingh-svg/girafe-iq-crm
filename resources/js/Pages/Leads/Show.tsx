@@ -5,7 +5,7 @@ import PhoneTextInput from '@/Components/PhoneTextInput';
 import TextInput from '@/Components/TextInput';
 import CrmLayout from '@/Layouts/CrmLayout';
 import { Head, Link, router, useForm, usePage } from '@inertiajs/react';
-import { FormEventHandler, useState } from 'react';
+import { FormEventHandler, useEffect, useState } from 'react';
 
 const ACTION_LABELS: Record<string, string> = {
     'enquiry.created': 'Enquiry created',
@@ -113,6 +113,7 @@ export default function LeadShow({
     leadFields?: CustomFieldDef[];
 }) {
     const flash = (usePage().props as { flash?: { success?: string } }).flash;
+    const [showEdit, setShowEdit] = useState(false);
     const [showFollowUp, setShowFollowUp] = useState(false);
     const [logKind, setLogKind] = useState<'call' | 'note' | null>(null);
     const [showUpload, setShowUpload] = useState(false);
@@ -239,8 +240,16 @@ export default function LeadShow({
 
     const saveLead: FormEventHandler = (e) => {
         e.preventDefault();
-        patch(route('leads.update', lead.id));
+        patch(route('leads.update', lead.id), {
+            preserveScroll: true,
+            onSuccess: () => setShowEdit(false),
+            onError: () => setShowEdit(true),
+        });
     };
+
+    useEffect(() => {
+        setShowEdit(false);
+    }, [lead.id]);
 
     const completeFollowUp = (id: number) => {
         router.post(route('tasks.complete', id), {}, { preserveScroll: true });
@@ -290,13 +299,24 @@ export default function LeadShow({
                                 <button
                                     type="button"
                                     onClick={() => {
-                                        document
-                                            .getElementById('edit-lead-form')
-                                            ?.scrollIntoView({ behavior: 'smooth', block: 'start' });
+                                        setShowEdit((open) => {
+                                            const next = !open;
+                                            if (next) {
+                                                requestAnimationFrame(() => {
+                                                    document
+                                                        .getElementById('edit-lead-form')
+                                                        ?.scrollIntoView({
+                                                            behavior: 'smooth',
+                                                            block: 'start',
+                                                        });
+                                                });
+                                            }
+                                            return next;
+                                        });
                                     }}
                                     className="rounded-xl bg-emerald-600 px-4 py-2 text-sm font-semibold text-white hover:bg-emerald-500"
                                 >
-                                    Edit lead
+                                    {showEdit ? 'Hide edit' : 'Edit lead'}
                                 </button>
                             </div>
                         </div>
@@ -380,6 +400,7 @@ export default function LeadShow({
                         )}
                     </div>
 
+                    {showEdit && (
                     <form
                         id="edit-lead-form"
                         onSubmit={saveLead}
@@ -392,6 +413,13 @@ export default function LeadShow({
                                     Name, contact, status, source, assignee & custom fields
                                 </p>
                             </div>
+                            <button
+                                type="button"
+                                onClick={() => setShowEdit(false)}
+                                className="rounded-lg border border-slate-200 px-3 py-1.5 text-xs font-semibold text-slate-600 dark:border-slate-700 dark:text-slate-300"
+                            >
+                                Cancel
+                            </button>
                         </div>
 
                         <div className="mt-4 grid gap-4 sm:grid-cols-2">
@@ -577,6 +605,7 @@ export default function LeadShow({
                             {editProcessing ? 'Saving…' : 'Save lead'}
                         </button>
                     </form>
+                    )}
 
                     <div className="rounded-2xl border border-slate-200 bg-white p-5 dark:border-slate-800 dark:bg-slate-900">
                         <div className="flex flex-wrap items-center justify-between gap-2">

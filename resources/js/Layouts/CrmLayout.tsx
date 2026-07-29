@@ -326,7 +326,15 @@ export default function CrmLayout({
                                             <li key={item.href}>
                                                 <Link
                                                     href={item.href}
-                                                    onClick={() => setSidebarOpen(false)}
+                                                    onClick={() => {
+                                                        setSidebarOpen(false);
+                                                        if (!active) {
+                                                            window.scrollTo({
+                                                                top: 0,
+                                                                behavior: 'smooth',
+                                                            });
+                                                        }
+                                                    }}
                                                     className={`flex items-center gap-3 rounded-lg px-3 py-2 text-[13px] font-medium transition-all duration-150 ${
                                                         active
                                                             ? 'bg-emerald-500/15 text-emerald-400 shadow-sm'
