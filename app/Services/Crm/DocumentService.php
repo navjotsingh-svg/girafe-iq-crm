@@ -43,18 +43,35 @@ class DocumentService
             'notes' => $data['notes'] ?? null,
         ]);
 
-        $this->logger->log('document.uploaded', $document);
+        $this->logger->log('document.uploaded', $document, [
+            'title' => $document->title,
+            'original_name' => $document->original_name,
+            'category' => $document->category,
+            'size' => $document->size,
+            'uploader_id' => $user->id,
+            'uploader_name' => $user->name,
+            'related_type' => $type ? class_basename($type) : null,
+            'related_id' => $id,
+        ]);
 
         return $document;
     }
 
     public function delete(Document $document): void
     {
+        $document->loadMissing('uploader');
+
         if ($document->path) {
             Storage::disk($document->disk)->delete($document->path);
         }
 
-        $this->logger->log('document.deleted', $document);
+        $this->logger->log('document.deleted', $document, [
+            'title' => $document->title,
+            'original_name' => $document->original_name,
+            'category' => $document->category,
+            'uploader_id' => $document->uploaded_by,
+            'uploader_name' => $document->uploader?->name,
+        ]);
         $document->delete();
     }
 

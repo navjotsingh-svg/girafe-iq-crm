@@ -38,7 +38,10 @@ class HandleInertiaRequests extends Middleware
             $canAccessAdminModules = $user->canAccessAdminModules();
 
             try {
-                $permissions = $user->getAllPermissions()->pluck('name')->values()->all();
+                $effective = app(\App\Services\Crm\RolePermissionService::class)
+                    ->effectivePermissionNames($user);
+
+                $permissions = $effective ?? $user->getAllPermissions()->pluck('name')->values()->all();
             } catch (Throwable) {
                 $permissions = [];
             }
@@ -73,6 +76,11 @@ class HandleInertiaRequests extends Middleware
                 'name' => config('girafe.name'),
                 'tagline' => config('girafe.tagline'),
                 'trial_days' => config('girafe.trial_days'),
+                'phone' => [
+                    'min_digits' => (int) config('girafe.phone.min_digits', 10),
+                    'max_digits' => (int) config('girafe.phone.max_digits', 15),
+                    'max_chars' => (int) config('girafe.phone.max_chars', 30),
+                ],
             ],
             'flash' => [
                 'success' => fn () => $request->session()->get('success'),

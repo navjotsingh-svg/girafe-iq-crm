@@ -234,6 +234,10 @@ class LeadController extends Controller
             'documents' => Document::query()
                 ->where('documentable_type', Lead::class)
                 ->where('documentable_id', $lead->id)
+                ->when(
+                    ! $this->userSeesAllLeadDocuments($request->user()),
+                    fn ($q) => $q->where('uploaded_by', $request->user()->id)
+                )
                 ->latest()
                 ->get()
                 ->map(fn (Document $d) => [
@@ -273,7 +277,7 @@ class LeadController extends Controller
         $data = $request->validate([
             'name' => 'required|string|max:255',
             'email' => 'nullable|email|max:255',
-            'phone' => 'required|string|max:30',
+            'phone' => \App\Support\Phone::rules(required: true),
             'lead_status_id' => 'nullable|exists:lead_statuses,id',
             'lead_source_id' => 'nullable|exists:lead_sources,id',
             'temperature' => 'nullable|in:cold,warm,hot',
@@ -313,7 +317,7 @@ class LeadController extends Controller
         $data = $request->validate([
             'name' => 'required|string|max:255',
             'email' => 'nullable|email|max:255',
-            'phone' => 'required|string|max:30',
+            'phone' => \App\Support\Phone::rules(required: true),
             'lead_status_id' => 'nullable|exists:lead_statuses,id',
             'lead_source_id' => 'nullable|exists:lead_sources,id',
             'temperature' => 'nullable|in:cold,warm,hot',
@@ -475,6 +479,18 @@ class LeadController extends Controller
                 $errors["custom_fields.{$key}"] = "{$definition->name} is required.";
             }
 
+            if ($definition->type === 'phone' && is_string($value) && $value !== '') {
+                $failed = false;
+                $message = null;
+                (new \App\Rules\PhoneNumber)->validate("custom_fields.{$key}", $value, function (string $msg) use (&$failed, &$message) {
+                    $failed = true;
+                    $message = $msg;
+                });
+                if ($failed) {
+                    $errors["custom_fields.{$key}"] = str_replace(':attribute', $definition->name, (string) $message);
+                }
+            }
+
             if ($definition->type === 'boolean') {
                 $normalized[$key] = (bool) $value;
             } elseif ($value !== null) {
@@ -487,5 +503,17 @@ class LeadController extends Controller
         }
 
         return $normalized;
+    }
+
+    private function userSeesAllLeadDocuments(User $user): bool
+    {
+        $user->syncPermissionTeam();
+
+        return $user->isCompanyAdmin()
+            || $user->hasRole('manager')
+            || $user->hasRole('super_admin')
+            || $user->getRoleNames()->contains('manager')
+            || $user->getRoleNames()->contains('company_admin')
+            || $user->getRoleNames()->contains('super_admin');
     }
 }

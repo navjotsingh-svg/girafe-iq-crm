@@ -57,7 +57,7 @@ class WhatsAppController extends Controller
     {
         $data = $request->validate([
             'to_name' => 'nullable|string|max:255',
-            'to_address' => 'required|string|max:30',
+            'to_address' => \App\Support\Phone::rules(required: true),
             'body' => 'required|string|max:5000',
             'template_id' => 'nullable|exists:message_templates,id',
             'lead_id' => 'nullable|exists:leads,id',

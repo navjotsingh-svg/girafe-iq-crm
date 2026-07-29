@@ -155,7 +155,7 @@ class EnquiryController extends Controller
         $data = $request->validate([
             'name' => 'required|string|max:255',
             'email' => 'nullable|email|max:255',
-            'phone' => 'nullable|string|max:30',
+            'phone' => \App\Support\Phone::rules(),
             'lead_source_id' => 'nullable|exists:lead_sources,id',
             'channel' => 'nullable|string|max:40',
             'message' => 'nullable|string|max:5000',

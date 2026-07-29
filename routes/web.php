@@ -159,6 +159,7 @@ Route::middleware(['auth', 'verified', 'tenant'])->group(function () {
             Route::patch('/settings/company', [SettingsController::class, 'updateCompany'])->name('settings.company');
             Route::patch('/settings/providers', [SettingsController::class, 'updateProviders'])->name('settings.providers');
             Route::patch('/settings/lead-assignment', [SettingsController::class, 'updateLeadAssignment'])->name('settings.lead-assignment');
+            Route::patch('/settings/role-permissions', [SettingsController::class, 'updateRolePermissions'])->name('settings.role-permissions');
             Route::patch('/settings/integrations', [SettingsController::class, 'updateIntegration'])->name('settings.integrations');
             Route::get('/integrations/meta/connect', [MetaOAuthController::class, 'connect'])->name('integrations.meta.connect');
             Route::get('/integrations/meta/callback', [MetaOAuthController::class, 'callback'])->name('integrations.meta.callback');
@@ -174,6 +175,7 @@ Route::middleware(['auth', 'verified', 'tenant'])->group(function () {
 
         Route::get('/documents', [DocumentController::class, 'index'])->name('documents.index');
         Route::post('/documents', [DocumentController::class, 'store'])->name('documents.store');
+        Route::get('/documents/{document}', [DocumentController::class, 'show'])->name('documents.show');
         Route::get('/documents/{document}/download', [DocumentController::class, 'download'])->name('documents.download');
         Route::delete('/documents/{document}', [DocumentController::class, 'destroy'])->name('documents.destroy');
 

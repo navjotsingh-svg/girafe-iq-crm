@@ -1,5 +1,6 @@
 import InputError from '@/Components/InputError';
 import InputLabel from '@/Components/InputLabel';
+import PhoneTextInput from '@/Components/PhoneTextInput';
 import TextInput from '@/Components/TextInput';
 import CrmLayout from '@/Layouts/CrmLayout';
 import { Head, router, useForm, usePage } from '@inertiajs/react';
@@ -226,15 +227,27 @@ export default function MessagingChannel({
                                 htmlFor="to_address"
                                 value={channel === 'email' ? 'Email *' : 'Phone *'}
                             />
-                            <TextInput
-                                id="to_address"
-                                value={sendForm.data.to_address}
-                                className={fieldClass}
-                                onChange={(e) =>
-                                    sendForm.setData('to_address', e.target.value)
-                                }
-                                required
-                            />
+                            {channel === 'email' ? (
+                                <TextInput
+                                    id="to_address"
+                                    value={sendForm.data.to_address}
+                                    className={fieldClass}
+                                    onChange={(e) =>
+                                        sendForm.setData('to_address', e.target.value)
+                                    }
+                                    required
+                                />
+                            ) : (
+                                <PhoneTextInput
+                                    id="to_address"
+                                    value={sendForm.data.to_address}
+                                    className={fieldClass}
+                                    onChange={(e) =>
+                                        sendForm.setData('to_address', e.target.value)
+                                    }
+                                    required
+                                />
+                            )}
                             <InputError message={sendForm.errors.to_address} />
                         </div>
                         {channel === 'email' && (

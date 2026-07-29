@@ -202,45 +202,16 @@ class IndustryPackService
 
     private function seedTenantRoles(Company $company): void
     {
-        $this->syncTenantRoles($company);
+        $this->syncTenantRoles($company, true);
     }
 
     /**
-     * Create/update Spatie roles for a company with current permission grants.
+     * Ensure Spatie role templates exist and company staff overrides are ready.
      */
-    public function syncTenantRoles(Company $company): void
+    public function syncTenantRoles(Company $company, bool $forceDefaults = false): void
     {
-        app(PermissionRegistrar::class)->setPermissionsTeamId($company->id);
-        app(PermissionRegistrar::class)->forgetCachedPermissions();
-
-        $allPermissions = $this->ensurePermissionsExist();
-        $adminOnly = config('permissions.admin_only', []);
-        $grants = config('permissions.role_grants', []);
-
-        foreach (config('permissions.roles') as $roleName) {
-            if ($roleName === 'super_admin') {
-                continue;
-            }
-
-            $role = Role::findOrCreate($roleName, 'web');
-            $grant = array_key_exists($roleName, $grants) ? $grants[$roleName] : [];
-
-            if ($grant === null) {
-                $role->syncPermissions($allPermissions);
-            } elseif ($grant === 'view_except_admin') {
-                $role->syncPermissions(
-                    $allPermissions->filter(
-                        fn (Permission $p) => str_ends_with($p->name, '.view')
-                            && ! in_array($p->name, $adminOnly, true)
-                    )
-                );
-            } else {
-                $role->syncPermissions($this->permissionsByName(
-                    array_values(array_diff((array) $grant, $adminOnly)),
-                    $allPermissions
-                ));
-            }
-        }
+        app(\App\Services\Crm\RolePermissionService::class)
+            ->ensureCompanyRoles($company, $forceDefaults);
     }
 
     /**

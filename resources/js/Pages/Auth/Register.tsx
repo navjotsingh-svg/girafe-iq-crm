@@ -1,5 +1,6 @@
 import InputError from '@/Components/InputError';
 import InputLabel from '@/Components/InputLabel';
+import PhoneTextInput from '@/Components/PhoneTextInput';
 import TextInput from '@/Components/TextInput';
 import AuthSplitLayout from '@/Layouts/AuthSplitLayout';
 import { Head, Link, useForm, usePage } from '@inertiajs/react';
@@ -82,7 +83,7 @@ export default function Register() {
                     </div>
                     <div>
                         <InputLabel htmlFor="phone" value="Phone" />
-                        <TextInput
+                        <PhoneTextInput
                             id="phone"
                             name="phone"
                             value={data.phone}

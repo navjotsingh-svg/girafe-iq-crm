@@ -93,8 +93,12 @@ class User extends Authenticatable
         }
 
         $roles = $this->getRoleNames();
+        if ($roles->contains('manager')) {
+            return true;
+        }
 
-        return $roles->contains('manager');
+        // Workspace creator always manages team/settings even if role sync lagged
+        return $this->isWorkspaceOwner();
     }
 
     public function canAccessAdminModules(): bool

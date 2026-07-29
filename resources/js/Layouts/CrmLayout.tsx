@@ -79,23 +79,49 @@ export default function CrmLayout({
     const roles: string[] = Array.isArray(user?.roles)
         ? user.roles.map((r: string) => String(r))
         : Object.values(user?.roles ?? {}).map((r) => String(r));
+    const roleSet = new Set(roles);
     const isAdmin =
         user?.can_access_admin_modules === true ||
         user?.can_manage_team === true ||
-        roles.some((r) =>
-            ['company_admin', 'super_admin', 'manager'].includes(r),
-        );
+        roleSet.has('company_admin') ||
+        roleSet.has('super_admin') ||
+        roleSet.has('manager');
+    // Sales executive / other staff must never get admin menus via role guesswork
+    const isStaffOnly =
+        roleSet.has('sales_executive') &&
+        !roleSet.has('company_admin') &&
+        !roleSet.has('super_admin') &&
+        !roleSet.has('manager');
+
+    const hasPermission = (permission?: string) =>
+        !!permission && permissions.includes(permission);
 
     const can = (item: NavItem) => {
-        if (item.adminOnly) {
-            return isAdmin || (item.permission ? permissions.includes(item.permission) : false);
+        // Team: only with team permission or manage-team access
+        if (item.routeName === 'team.index') {
+            return (
+                user?.can_manage_team === true ||
+                hasPermission('team.view') ||
+                hasPermission('team.manage')
+            );
         }
+
+        if (item.adminOnly) {
+            // Admins always see; staff only if explicitly granted that permission
+            if (isAdmin && !isStaffOnly) {
+                return true;
+            }
+            return hasPermission(item.permission);
+        }
+
         if (!item.permission) {
             return true;
         }
-        if (isAdmin) {
+
+        if (isAdmin && !isStaffOnly) {
             return true;
         }
+
         // Staff: only show pages they actually have permission for
         if (permissions.length === 0) {
             return [
@@ -108,13 +134,20 @@ export default function CrmLayout({
                 'documents.view',
             ].includes(item.permission);
         }
-        return permissions.includes(item.permission);
+
+        return hasPermission(item.permission);
     };
 
     const nav = useMemo(
         () => NAV.filter((item) => can(item)),
         // eslint-disable-next-line react-hooks/exhaustive-deps
-        [permissions.join('|'), roles.join('|'), isAdmin],
+        [
+            permissions.join('|'),
+            roles.join('|'),
+            isAdmin,
+            isStaffOnly,
+            user?.can_manage_team,
+        ],
     );
     return (
         <div className="min-h-screen bg-slate-50 text-slate-900 dark:bg-slate-950 dark:text-slate-100">
@@ -125,7 +158,7 @@ export default function CrmLayout({
                     }`}
                 >
                     <div className="flex h-16 items-center gap-2 border-b border-slate-200 px-4 dark:border-slate-800">
-                        <ApplicationLogo className="h-8 w-8 fill-current text-emerald-600" />
+                        <ApplicationLogo className="h-8 w-8" />
                         <div>
                             <div className="text-sm font-bold leading-tight">{appName}</div>
                             <div className="text-xs text-slate-500 dark:text-slate-400">

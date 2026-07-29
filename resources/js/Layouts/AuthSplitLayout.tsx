@@ -1,3 +1,4 @@
+import ApplicationLogo from '@/Components/ApplicationLogo';
 import { Link } from '@inertiajs/react';
 import { PropsWithChildren } from 'react';
 
@@ -42,13 +43,16 @@ export default function AuthSplitLayout({
                 </div>
 
                 <div className="relative">
-                    <Link href="/" className="inline-block">
-                        <p className="text-xs font-semibold uppercase tracking-[0.22em] text-emerald-400">
-                            Girafe IQ
-                        </p>
-                        <p className="mt-1 text-sm text-slate-400">
-                            CRM for every industry
-                        </p>
+                    <Link href="/" className="inline-flex items-center gap-3">
+                        <ApplicationLogo className="h-10 w-10" />
+                        <span>
+                            <p className="text-xs font-semibold uppercase tracking-[0.22em] text-emerald-400">
+                                Girafe IQ
+                            </p>
+                            <p className="mt-1 text-sm text-slate-400">
+                                CRM for every industry
+                            </p>
+                        </span>
                     </Link>
                 </div>
 
@@ -100,7 +104,8 @@ export default function AuthSplitLayout({
                 />
                 <div className="relative mx-auto w-full max-w-md">
                     <div className="mb-8 lg:hidden">
-                        <Link href="/">
+                        <Link href="/" className="inline-flex items-center gap-2.5">
+                            <ApplicationLogo className="h-9 w-9" />
                             <p className="text-xs font-semibold uppercase tracking-[0.18em] text-emerald-700">
                                 Girafe IQ
                             </p>

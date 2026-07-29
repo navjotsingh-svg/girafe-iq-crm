@@ -103,7 +103,7 @@ class CustomerController extends Controller
         $data = $request->validate([
             'name' => 'required|string|max:255',
             'email' => 'nullable|email|max:255',
-            'phone' => 'nullable|string|max:30',
+            'phone' => \App\Support\Phone::rules(),
             'status' => 'nullable|in:active,inactive,churned',
             'lifetime_value' => 'nullable|numeric|min:0',
             'notes' => 'nullable|string|max:5000',
@@ -125,7 +125,7 @@ class CustomerController extends Controller
         $data = $request->validate([
             'name' => 'nullable|string|max:255',
             'email' => 'nullable|email|max:255',
-            'phone' => 'nullable|string|max:30',
+            'phone' => \App\Support\Phone::rules(),
             'status' => 'nullable|in:active,inactive,churned',
             'lifetime_value' => 'nullable|numeric|min:0',
             'notes' => 'nullable|string|max:5000',

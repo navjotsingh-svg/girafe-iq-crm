@@ -1,5 +1,6 @@
 import InputError from '@/Components/InputError';
 import InputLabel from '@/Components/InputLabel';
+import PhoneTextInput from '@/Components/PhoneTextInput';
 import TextInput from '@/Components/TextInput';
 import CrmLayout from '@/Layouts/CrmLayout';
 import { Head, Link, router, useForm, usePage } from '@inertiajs/react';
@@ -68,6 +69,7 @@ const TABS = [
     { key: 'company', label: 'Company' },
     { key: 'fields', label: 'Lead fields' },
     { key: 'assignment', label: 'Lead assignment' },
+    { key: 'permissions', label: 'Staff permissions' },
     { key: 'pipeline', label: 'Pipeline stages' },
     { key: 'providers', label: 'Providers' },
     { key: 'integrations', label: 'Integrations' },
@@ -87,6 +89,8 @@ export default function SettingsIndex({
     providers,
     integrations = [],
     leadAssignment,
+    rolePermissions,
+    selectedRole: selectedRoleProp,
     team = [],
 }: {
     tab: string;
@@ -122,11 +126,26 @@ export default function SettingsIndex({
         last_assigned_user_id: number | null;
         last_assigned_name: string | null;
     };
+    rolePermissions?: {
+        roles: { value: string; label: string }[];
+        modules: {
+            key: string;
+            label: string;
+            actions: { key: string; label: string; permission: string }[];
+        }[];
+        role_permissions: Record<string, string[]>;
+        locked: string[];
+    };
+    selectedRole?: string;
     team?: { id: number; name: string }[];
 }) {
     const flash = (
         usePage().props as { flash?: { success?: string; error?: string } }
     ).flash;
+    const selectedRole =
+        selectedRoleProp ||
+        rolePermissions?.roles?.[0]?.value ||
+        'sales_executive';
 
     return (
         <CrmLayout title="Settings">
@@ -146,7 +165,7 @@ export default function SettingsIndex({
             <div className="mb-6">
                 <h2 className="text-xl font-bold">Settings</h2>
                 <p className="text-sm text-slate-500">
-                    Company profile, lead fields, pipeline & lead integrations
+                    Company profile, lead fields, staff permissions, pipeline & integrations
                 </p>
             </div>
 
@@ -192,6 +211,25 @@ export default function SettingsIndex({
                         }
                     }
                     team={team}
+                />
+            )}
+            {tab === 'permissions' && (
+                <PermissionsTab
+                    matrix={
+                        rolePermissions ?? {
+                            roles: [
+                                { value: 'sales_executive', label: 'Sales Executive' },
+                                { value: 'sales_manager', label: 'Sales Manager' },
+                                { value: 'marketing', label: 'Marketing' },
+                                { value: 'support', label: 'Support' },
+                                { value: 'viewer', label: 'Viewer' },
+                            ],
+                            modules: [],
+                            role_permissions: {},
+                            locked: [],
+                        }
+                    }
+                    initialRole={selectedRole}
                 />
             )}
             {tab === 'pipeline' && <PipelineTab pipeline={pipeline} />}
@@ -272,12 +310,13 @@ function CompanyTab({
                 </div>
                 <div>
                     <InputLabel htmlFor="phone" value="Phone" />
-                    <TextInput
+                    <PhoneTextInput
                         id="phone"
                         value={data.phone}
                         className={fieldClass}
                         onChange={(e) => setData('phone', e.target.value)}
                     />
+                    <InputError message={errors.phone} className="mt-1" />
                 </div>
                 <div>
                     <InputLabel htmlFor="timezone" value="Timezone" />
@@ -326,6 +365,212 @@ function CompanyTab({
             >
                 Save company
             </button>
+        </form>
+    );
+}
+
+function PermissionsTab({
+    matrix,
+    initialRole,
+}: {
+    matrix: {
+        roles: { value: string; label: string }[];
+        modules: {
+            key: string;
+            label: string;
+            actions: { key: string; label: string; permission: string }[];
+        }[];
+        role_permissions: Record<string, string[]>;
+        locked: string[];
+    };
+    initialRole: string;
+}) {
+    const [role, setRole] = useState(
+        matrix.roles.some((r) => r.value === initialRole)
+            ? initialRole
+            : matrix.roles[0]?.value || 'sales_executive',
+    );
+
+    const { data, setData } = useForm({
+        role,
+        permissions: matrix.role_permissions[role] ?? [],
+    });
+    const [saving, setSaving] = useState(false);
+
+    const switchRole = (next: string) => {
+        setRole(next);
+        setData({
+            role: next,
+            permissions: matrix.role_permissions[next] ?? [],
+        });
+        router.get(
+            route('settings.index', { tab: 'permissions', role: next }),
+            {},
+            { preserveState: true, preserveScroll: true, replace: true },
+        );
+    };
+
+    const toggle = (permission: string) => {
+        if (matrix.locked.includes(permission)) {
+            return;
+        }
+        const has = data.permissions.includes(permission);
+        setData(
+            'permissions',
+            has
+                ? data.permissions.filter((p) => p !== permission)
+                : [...data.permissions, permission],
+        );
+    };
+
+    const toggleModuleView = (moduleKey: string, viewPermission: string) => {
+        const module = matrix.modules.find((m) => m.key === moduleKey);
+        if (!module) {
+            return;
+        }
+        const enabled = data.permissions.includes(viewPermission);
+        if (enabled) {
+            const remove = new Set(module.actions.map((a) => a.permission));
+            setData(
+                'permissions',
+                data.permissions.filter((p) => !remove.has(p)),
+            );
+        } else {
+            setData('permissions', [
+                ...new Set([...data.permissions, viewPermission]),
+            ]);
+        }
+    };
+
+    const submit: FormEventHandler = (e) => {
+        e.preventDefault();
+        setSaving(true);
+        router.patch(
+            route('settings.role-permissions'),
+            {
+                role,
+                permissions: data.permissions,
+            },
+            {
+                preserveScroll: true,
+                onFinish: () => setSaving(false),
+            },
+        );
+    };
+
+    return (
+        <form
+            onSubmit={submit}
+            className="rounded-2xl border border-slate-200 bg-white p-6 dark:border-slate-800 dark:bg-slate-900"
+        >
+            <div className="mb-5 flex flex-col gap-3 sm:flex-row sm:items-end sm:justify-between">
+                <div>
+                    <h3 className="text-lg font-semibold">Staff role permissions</h3>
+                    <p className="mt-1 text-sm text-slate-500">
+                        Choose what each staff role can see in the menu, and whether they can
+                        create or edit.
+                    </p>
+                </div>
+                <div className="min-w-[220px]">
+                    <InputLabel htmlFor="staff_role" value="Staff role" />
+                    <select
+                        id="staff_role"
+                        className={fieldClass}
+                        value={role}
+                        onChange={(e) => switchRole(e.target.value)}
+                    >
+                        {matrix.roles.map((r) => (
+                            <option key={r.value} value={r.value}>
+                                {r.label}
+                            </option>
+                        ))}
+                    </select>
+                </div>
+            </div>
+
+            <div className="overflow-x-auto rounded-xl border border-slate-200 dark:border-slate-700">
+                <table className="min-w-full text-sm">
+                    <thead className="bg-slate-50 text-left text-xs uppercase text-slate-500 dark:bg-slate-800/60">
+                        <tr>
+                            <th className="px-4 py-3">Module</th>
+                            <th className="px-4 py-3">Permissions</th>
+                        </tr>
+                    </thead>
+                    <tbody className="divide-y divide-slate-100 dark:divide-slate-800">
+                        {matrix.modules.map((mod) => {
+                            const viewAction = mod.actions.find((a) => a.key === 'view');
+                            const viewOn = viewAction
+                                ? data.permissions.includes(viewAction.permission)
+                                : false;
+                            return (
+                                <tr key={mod.key}>
+                                    <td className="px-4 py-3 align-top font-medium text-slate-800 dark:text-slate-100">
+                                        {mod.label}
+                                    </td>
+                                    <td className="px-4 py-3">
+                                        <div className="flex flex-wrap gap-3">
+                                            {mod.actions.map((action) => {
+                                                const locked = matrix.locked.includes(
+                                                    action.permission,
+                                                );
+                                                const checked = data.permissions.includes(
+                                                    action.permission,
+                                                );
+                                                const disabled =
+                                                    locked ||
+                                                    (action.key !== 'view' &&
+                                                        !!viewAction &&
+                                                        !viewOn);
+                                                return (
+                                                    <label
+                                                        key={action.permission}
+                                                        className={`inline-flex items-center gap-2 rounded-lg border px-3 py-1.5 text-xs font-medium ${
+                                                            checked
+                                                                ? 'border-emerald-300 bg-emerald-50 text-emerald-800 dark:border-emerald-800 dark:bg-emerald-950/40 dark:text-emerald-200'
+                                                                : 'border-slate-200 text-slate-600 dark:border-slate-700 dark:text-slate-300'
+                                                        } ${disabled ? 'opacity-50' : 'cursor-pointer'}`}
+                                                    >
+                                                        <input
+                                                            type="checkbox"
+                                                            className="rounded border-slate-300 text-emerald-600 focus:ring-emerald-500"
+                                                            checked={checked}
+                                                            disabled={disabled}
+                                                            onChange={() => {
+                                                                if (action.key === 'view' && viewAction) {
+                                                                    toggleModuleView(
+                                                                        mod.key,
+                                                                        viewAction.permission,
+                                                                    );
+                                                                } else {
+                                                                    toggle(action.permission);
+                                                                }
+                                                            }}
+                                                        />
+                                                        {action.label}
+                                                    </label>
+                                                );
+                                            })}
+                                        </div>
+                                    </td>
+                                </tr>
+                            );
+                        })}
+                    </tbody>
+                </table>
+            </div>
+
+            <div className="mt-5 flex flex-wrap items-center gap-3">
+                <button
+                    type="submit"
+                    disabled={saving}
+                    className="rounded-xl bg-emerald-600 px-5 py-2.5 text-sm font-semibold text-white disabled:opacity-50"
+                >
+                    Save permissions
+                </button>
+                <p className="text-xs text-slate-500">
+                    Company Admin and Manager always keep full access.
+                </p>
+            </div>
         </form>
     );
 }

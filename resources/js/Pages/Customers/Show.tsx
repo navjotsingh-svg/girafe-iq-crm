@@ -1,4 +1,6 @@
+import InputError from '@/Components/InputError';
 import InputLabel from '@/Components/InputLabel';
+import PhoneTextInput from '@/Components/PhoneTextInput';
 import TextInput from '@/Components/TextInput';
 import CrmLayout from '@/Layouts/CrmLayout';
 import { Head, Link, useForm, usePage } from '@inertiajs/react';
@@ -35,7 +37,7 @@ export default function CustomerShow({
 }) {
     const flash = (usePage().props as { flash?: { success?: string } }).flash;
 
-    const { data, setData, patch, processing } = useForm({
+    const { data, setData, patch, processing, errors } = useForm({
         name: customer.name,
         email: customer.email ?? '',
         phone: customer.phone ?? '',
@@ -165,12 +167,13 @@ export default function CustomerShow({
                             </div>
                             <div>
                                 <InputLabel htmlFor="phone" value="Phone" />
-                                <TextInput
+                                <PhoneTextInput
                                     id="phone"
                                     value={data.phone}
                                     className={fieldClass}
                                     onChange={(e) => setData('phone', e.target.value)}
                                 />
+                                <InputError message={errors.phone} className="mt-1" />
                             </div>
                             <div>
                                 <InputLabel htmlFor="email" value="Email" />

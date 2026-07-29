@@ -1,6 +1,7 @@
 import InputError from '@/Components/InputError';
 import InputLabel from '@/Components/InputLabel';
 import Modal from '@/Components/Modal';
+import PhoneTextInput from '@/Components/PhoneTextInput';
 import TextInput from '@/Components/TextInput';
 import CrmLayout from '@/Layouts/CrmLayout';
 import { Head, router, useForm, usePage } from '@inertiajs/react';
@@ -262,13 +263,14 @@ export default function TeamIndex({
                             </div>
                             <div>
                                 <InputLabel htmlFor="invite-phone" value="Phone (optional)" />
-                                <TextInput
+                                <PhoneTextInput
                                     id="invite-phone"
                                     value={data.phone}
                                     className={fieldClass}
                                     placeholder="+91 …"
                                     onChange={(e) => setData('phone', e.target.value)}
                                 />
+                                <InputError message={errors.phone} className="mt-1" />
                             </div>
                             <div>
                                 <InputLabel htmlFor="invite-role" value="Role" />

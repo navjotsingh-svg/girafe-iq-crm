@@ -12,7 +12,6 @@ use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Facades\Mail;
 use Illuminate\Validation\ValidationException;
-use Spatie\Permission\Models\Role;
 use Spatie\Permission\PermissionRegistrar;
 use Throwable;
 
@@ -109,8 +108,8 @@ class TeamService
                 'email_verified_at' => now(),
             ]);
 
-            $role = Role::findOrCreate($invitation->role, 'web');
-            $user->assignRole($role);
+            app(\App\Services\Crm\RolePermissionService::class)
+                ->assignCompanyRole($user, $company, $invitation->role);
 
             $invitation->update(['accepted_at' => now()]);
 
@@ -180,8 +179,7 @@ class TeamService
             abort(422, 'Invalid role.');
         }
 
-        $role = Role::findOrCreate($roleName, 'web');
-        $member->syncRoles([$role]);
+        app(RolePermissionService::class)->assignCompanyRole($member, $company, $roleName);
 
         $this->logger->log('team.role_updated', $member, ['role' => $roleName]);
 

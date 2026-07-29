@@ -1,4 +1,5 @@
 import InputLabel from '@/Components/InputLabel';
+import PhoneTextInput from '@/Components/PhoneTextInput';
 import TextInput from '@/Components/TextInput';
 
 export type CustomFieldDef = {
@@ -92,6 +93,21 @@ export default function CustomFieldInputs({
                     );
                 }
 
+                if (field.type === 'phone') {
+                    return (
+                        <div key={field.id}>
+                            <InputLabel htmlFor={id} value={label} />
+                            <PhoneTextInput
+                                id={id}
+                                className={fieldClass}
+                                value={String(value)}
+                                required={field.is_required}
+                                onChange={(e) => onChange(field.key, e.target.value)}
+                            />
+                        </div>
+                    );
+                }
+
                 const inputType =
                     field.type === 'number'
                         ? 'number'
@@ -99,9 +115,7 @@ export default function CustomFieldInputs({
                           ? 'date'
                           : field.type === 'email'
                             ? 'email'
-                            : field.type === 'phone'
-                              ? 'tel'
-                              : 'text';
+                            : 'text';
 
                 return (
                     <div key={field.id}>

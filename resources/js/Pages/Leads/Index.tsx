@@ -1,6 +1,7 @@
 import CustomFieldInputs, { CustomFieldDef } from '@/Components/CustomFieldInputs';
 import InputError from '@/Components/InputError';
 import InputLabel from '@/Components/InputLabel';
+import PhoneTextInput from '@/Components/PhoneTextInput';
 import TextInput from '@/Components/TextInput';
 import CrmLayout from '@/Layouts/CrmLayout';
 import { Head, Link, router, useForm, usePage } from '@inertiajs/react';
@@ -66,10 +67,7 @@ export default function LeadsIndex({
     const [showFilters, setShowFilters] = useState(() =>
         Object.values(filters).some((v) => v !== '' && v != null),
     );
-    const [filterState, setFilterState] = useState<Filters>({
-        follow_up: '',
-        ...filters,
-    });
+    const [filterState, setFilterState] = useState<Filters>({ ...filters });
 
     const defaultVisibleKeys = useMemo(
         () => leadFields.filter((f) => f.show_in_list).map((f) => f.key),
@@ -466,7 +464,7 @@ export default function LeadsIndex({
                         </div>
                         <div>
                             <InputLabel htmlFor="phone" value="Mobile *" />
-                            <TextInput
+                            <PhoneTextInput
                                 id="phone"
                                 value={data.phone}
                                 className={fieldClass}

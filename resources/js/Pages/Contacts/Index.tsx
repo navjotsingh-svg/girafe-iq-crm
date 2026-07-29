@@ -1,5 +1,6 @@
 import InputError from '@/Components/InputError';
 import InputLabel from '@/Components/InputLabel';
+import PhoneTextInput from '@/Components/PhoneTextInput';
 import TextInput from '@/Components/TextInput';
 import CrmLayout from '@/Layouts/CrmLayout';
 import { Head, Link, useForm, usePage } from '@inertiajs/react';
@@ -213,12 +214,13 @@ export default function ContactsIndex({
                         </div>
                         <div>
                             <InputLabel htmlFor="phone" value="Phone" />
-                            <TextInput
+                            <PhoneTextInput
                                 id="phone"
                                 value={data.phone}
                                 className={fieldClass}
                                 onChange={(e) => setData('phone', e.target.value)}
                             />
+                            <InputError message={errors.phone} className="mt-1" />
                         </div>
                         <div>
                             <InputLabel htmlFor="job_title" value="Job title" />

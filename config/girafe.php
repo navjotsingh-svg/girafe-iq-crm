@@ -7,4 +7,10 @@ return [
     'default_currency' => env('GIRAFE_DEFAULT_CURRENCY', 'INR'),
     'default_timezone' => env('GIRAFE_DEFAULT_TIMEZONE', 'Asia/Kolkata'),
     'default_country' => env('GIRAFE_DEFAULT_COUNTRY', 'IN'),
+    'phone' => [
+        // Digits only (spaces/dashes/+ are allowed in input but not counted)
+        'min_digits' => (int) env('PHONE_MIN_DIGITS', 10),
+        'max_digits' => (int) env('PHONE_MAX_DIGITS', 15),
+        'max_chars' => 30,
+    ],
 ];

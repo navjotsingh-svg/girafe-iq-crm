@@ -115,7 +115,7 @@ class TeamController extends Controller
                 'max:255',
                 Rule::unique('users', 'email'),
             ],
-            'phone' => 'nullable|string|max:30',
+            'phone' => \App\Support\Phone::rules(),
             'role' => ['required', Rule::in($allowedRoles)],
         ]);
 

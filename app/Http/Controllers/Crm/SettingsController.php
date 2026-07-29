@@ -112,6 +112,8 @@ class SettingsController extends Controller
             ],
             'integrations' => app(SettingsService::class)->integrationsForUi($company),
             'leadAssignment' => app(SettingsService::class)->leadAssignmentForUi($company),
+            'rolePermissions' => $this->safeRolePermissionsMatrix($company),
+            'selectedRole' => (string) $request->get('role', 'sales_executive'),
             'team' => User::query()
                 ->where('company_id', $company->id)
                 ->where('is_active', true)
@@ -120,12 +122,65 @@ class SettingsController extends Controller
         ]);
     }
 
+    /**
+     * @return array{
+     *   roles: list<array{value: string, label: string}>,
+     *   modules: list<array<string, mixed>>,
+     *   role_permissions: array<string, list<string>>,
+     *   locked: list<string>
+     * }
+     */
+    private function safeRolePermissionsMatrix($company): array
+    {
+        try {
+            return app(\App\Services\Crm\RolePermissionService::class)->matrixForUi($company);
+        } catch (\Throwable $e) {
+            report($e);
+
+            return [
+                'roles' => collect(config('permissions.editable_roles', []))
+                    ->map(fn (string $r) => [
+                        'value' => $r,
+                        'label' => str_replace('_', ' ', ucwords($r, '_')),
+                    ])
+                    ->values()
+                    ->all(),
+                'modules' => config('permissions.modules', []),
+                'role_permissions' => [],
+                'locked' => config('permissions.locked_from_staff', []),
+            ];
+        }
+    }
+
+    public function updateRolePermissions(Request $request, \App\Services\Crm\RolePermissionService $roles): RedirectResponse
+    {
+        if (! $request->user()->canManageTeam()) {
+            abort(403);
+        }
+
+        $data = $request->validate([
+            'role' => ['required', 'string', Rule::in(config('permissions.editable_roles', []))],
+            'permissions' => 'nullable|array',
+            'permissions.*' => 'string|max:80',
+        ]);
+
+        $roles->updateRolePermissions(
+            $request->user()->company,
+            $data['role'],
+            $data['permissions'] ?? [],
+            $request->user()
+        );
+
+        return redirect()->route('settings.index', ['tab' => 'permissions', 'role' => $data['role']])
+            ->with('success', 'Staff role permissions saved.');
+    }
+
     public function updateCompany(Request $request, SettingsService $service): RedirectResponse
     {
         $data = $request->validate([
             'name' => 'required|string|max:255',
             'email' => 'nullable|email|max:255',
-            'phone' => 'nullable|string|max:30',
+            'phone' => \App\Support\Phone::rules(),
             'country' => 'nullable|string|max:100',
             'timezone' => 'nullable|string|max:50',
             'currency' => 'nullable|string|max:3',

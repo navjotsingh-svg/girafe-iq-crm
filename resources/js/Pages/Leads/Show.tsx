@@ -1,6 +1,7 @@
 import CustomFieldInputs, { CustomFieldDef } from '@/Components/CustomFieldInputs';
 import InputError from '@/Components/InputError';
 import InputLabel from '@/Components/InputLabel';
+import PhoneTextInput from '@/Components/PhoneTextInput';
 import TextInput from '@/Components/TextInput';
 import CrmLayout from '@/Layouts/CrmLayout';
 import { Head, Link, router, useForm, usePage } from '@inertiajs/react';
@@ -59,6 +60,7 @@ type FollowUpRow = {
     description: string | null;
     status: string;
     due_at: string | null;
+    completed_at?: string | null;
     task_type: { id: number; name: string; color: string } | null;
     assignee: string | null;
     is_overdue: boolean;
@@ -406,7 +408,7 @@ export default function LeadShow({
                             </div>
                             <div>
                                 <InputLabel htmlFor="edit_phone" value="Mobile *" />
-                                <TextInput
+                                <PhoneTextInput
                                     id="edit_phone"
                                     className={fieldClass}
                                     value={editData.phone}

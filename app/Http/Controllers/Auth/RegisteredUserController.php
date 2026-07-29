@@ -32,7 +32,7 @@ class RegisteredUserController extends Controller
             'company_name' => 'required|string|max:255',
             'name' => 'required|string|max:255',
             'email' => 'required|string|lowercase|email|max:255|unique:users,email',
-            'phone' => 'nullable|string|max:30',
+            'phone' => \App\Support\Phone::rules(),
             'password' => ['required', 'confirmed', Rules\Password::defaults()],
         ]);
 
