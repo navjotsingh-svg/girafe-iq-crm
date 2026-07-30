@@ -8,6 +8,7 @@ use App\Models\Contact;
 use App\Models\User;
 use App\Services\Crm\ContactService;
 use App\Services\Crm\CsvImportService;
+use App\Services\Integrations\GoogleContactsOAuthService;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
 use Inertia\Inertia;
@@ -16,7 +17,7 @@ use Symfony\Component\HttpFoundation\StreamedResponse;
 
 class ContactController extends Controller
 {
-    public function index(Request $request): Response
+    public function index(Request $request, GoogleContactsOAuthService $google): Response
     {
         $company = $request->user()->company;
 
@@ -53,6 +54,8 @@ class ContactController extends Controller
                 'total' => Contact::query()->count(),
                 'primary' => Contact::query()->where('is_primary', true)->count(),
             ],
+            'gmail' => $google->connectionForUi($company),
+            'openGmail' => $request->boolean('gmail'),
         ]);
     }
 

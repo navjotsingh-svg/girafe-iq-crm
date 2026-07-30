@@ -55,4 +55,19 @@ return [
         ))))),
     ],
 
+    /*
+    | Google OAuth — Gmail / Google Contacts import (per-tenant connect).
+    | Create credentials in Google Cloud Console → APIs & Services → Credentials.
+    | Enable People API. Add redirect URI: {APP_URL}/contacts/google/callback
+    */
+    'google' => [
+        'client_id' => env('GOOGLE_CLIENT_ID'),
+        'client_secret' => env('GOOGLE_CLIENT_SECRET'),
+        'contacts_redirect_uri' => env('GOOGLE_CONTACTS_REDIRECT_URI'),
+        'contacts_scopes' => [
+            'https://www.googleapis.com/auth/contacts.readonly',
+            'https://www.googleapis.com/auth/userinfo.email',
+        ],
+    ],
+
 ];

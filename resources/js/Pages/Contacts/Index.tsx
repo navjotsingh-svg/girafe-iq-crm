@@ -3,8 +3,8 @@ import InputLabel from '@/Components/InputLabel';
 import PhoneTextInput from '@/Components/PhoneTextInput';
 import TextInput from '@/Components/TextInput';
 import CrmLayout from '@/Layouts/CrmLayout';
-import { Head, Link, useForm, usePage } from '@inertiajs/react';
-import { FormEventHandler, useRef, useState } from 'react';
+import { Head, Link, router, useForm, usePage } from '@inertiajs/react';
+import { FormEventHandler, useEffect, useRef, useState } from 'react';
 
 type ContactRow = {
     id: number;
@@ -20,6 +20,13 @@ type ContactRow = {
 
 type Option = { id: number; name: string };
 
+type GmailConnection = {
+    configured: boolean;
+    connected: boolean;
+    email: string | null;
+    connected_at: string | null;
+};
+
 const fieldClass =
     'mt-1 block w-full rounded-xl border-slate-200 bg-slate-50 px-3 py-2 text-sm focus:border-emerald-500 focus:ring-emerald-500 dark:border-slate-700 dark:bg-slate-800';
 
@@ -27,18 +34,27 @@ export default function ContactsIndex({
     contacts,
     accounts,
     stats,
+    gmail,
+    openGmail,
 }: {
     contacts: { data: ContactRow[] };
     accounts: Option[];
     team: Option[];
     stats: { total: number; primary: number };
+    gmail: GmailConnection;
+    openGmail?: boolean;
 }) {
     const flash = (usePage().props as {
-        flash?: { success?: string; import_errors?: string[] };
+        flash?: { success?: string; error?: string; import_errors?: string[] };
     }).flash;
     const [showForm, setShowForm] = useState(false);
     const [showImport, setShowImport] = useState(false);
+    const [showGmail, setShowGmail] = useState(!!openGmail);
     const fileRef = useRef<HTMLInputElement>(null);
+
+    useEffect(() => {
+        if (openGmail) setShowGmail(true);
+    }, [openGmail]);
 
     const { data, setData, post, processing, errors, reset } = useForm({
         first_name: '',
@@ -85,6 +101,12 @@ export default function ContactsIndex({
                 </div>
             )}
 
+            {flash?.error && (
+                <div className="mb-4 rounded-xl border border-rose-200 bg-rose-50 px-4 py-3 text-sm text-rose-800 dark:border-rose-900 dark:bg-rose-950/40 dark:text-rose-200">
+                    {flash.error}
+                </div>
+            )}
+
             <div className="mb-6 flex flex-wrap items-center justify-between gap-3">
                 <div>
                     <h2 className="text-xl font-bold">Contacts</h2>
@@ -96,7 +118,19 @@ export default function ContactsIndex({
                     <button
                         type="button"
                         onClick={() => {
+                            setShowGmail(!showGmail);
+                            setShowImport(false);
+                            setShowForm(false);
+                        }}
+                        className="rounded-xl border border-emerald-200 bg-emerald-50 px-4 py-2 text-sm font-semibold text-emerald-800 dark:border-emerald-900 dark:bg-emerald-950/40 dark:text-emerald-200"
+                    >
+                        {showGmail ? 'Close' : 'Import from Gmail'}
+                    </button>
+                    <button
+                        type="button"
+                        onClick={() => {
                             setShowImport(!showImport);
+                            setShowGmail(false);
                             setShowForm(false);
                         }}
                         className="rounded-xl border border-slate-200 bg-white px-4 py-2 text-sm font-semibold dark:border-slate-700 dark:bg-slate-900"
@@ -108,6 +142,7 @@ export default function ContactsIndex({
                         onClick={() => {
                             setShowForm(!showForm);
                             setShowImport(false);
+                            setShowGmail(false);
                         }}
                         className="rounded-xl bg-emerald-600 px-4 py-2 text-sm font-semibold text-white"
                     >
@@ -115,6 +150,59 @@ export default function ContactsIndex({
                     </button>
                 </div>
             </div>
+
+            {showGmail && (
+                <div className="mb-6 rounded-2xl border border-slate-200 bg-white p-5 dark:border-slate-800 dark:bg-slate-900">
+                    <h3 className="font-semibold">Import contacts from Gmail</h3>
+                    <p className="mt-1 text-sm text-slate-500">
+                        Connect your Google account to import contacts from Gmail / Google Contacts
+                        into this CRM. Re-sync skips contacts already imported.
+                    </p>
+
+                    {!gmail.configured ? (
+                        <p className="mt-4 text-sm text-amber-700 dark:text-amber-300">
+                            Gmail import is not configured on this server. Set{' '}
+                            <code className="text-xs">GOOGLE_CLIENT_ID</code> and{' '}
+                            <code className="text-xs">GOOGLE_CLIENT_SECRET</code> in the environment.
+                        </p>
+                    ) : gmail.connected ? (
+                        <div className="mt-4 space-y-3">
+                            <div className="flex items-center gap-2 text-sm text-emerald-700 dark:text-emerald-300">
+                                <span className="h-2 w-2 rounded-full bg-emerald-500" />
+                                Connected as {gmail.email || 'Google account'}
+                                {gmail.connected_at
+                                    ? ` · ${new Date(gmail.connected_at).toLocaleString()}`
+                                    : ''}
+                            </div>
+                            <div className="flex flex-wrap gap-2">
+                                <button
+                                    type="button"
+                                    onClick={() => router.post(route('contacts.google.sync'))}
+                                    className="rounded-xl bg-emerald-600 px-4 py-2 text-sm font-semibold text-white"
+                                >
+                                    Sync from Gmail
+                                </button>
+                                <button
+                                    type="button"
+                                    onClick={() => router.post(route('contacts.google.disconnect'))}
+                                    className="rounded-xl border border-slate-200 px-4 py-2 text-sm font-semibold dark:border-slate-700"
+                                >
+                                    Disconnect
+                                </button>
+                            </div>
+                        </div>
+                    ) : (
+                        <div className="mt-4">
+                            <a
+                                href={route('contacts.google.connect')}
+                                className="inline-flex rounded-xl bg-emerald-600 px-4 py-2 text-sm font-semibold text-white"
+                            >
+                                Connect Gmail
+                            </a>
+                        </div>
+                    )}
+                </div>
+            )}
 
             {flash?.import_errors && flash.import_errors.length > 0 && (
                 <div className="mb-4 rounded-xl border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-900 dark:border-amber-900 dark:bg-amber-950/40 dark:text-amber-100">

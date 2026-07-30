@@ -5,6 +5,7 @@ use App\Http\Controllers\Crm\AutomationController;
 use App\Http\Controllers\Crm\CalendarController;
 use App\Http\Controllers\Crm\CampaignController;
 use App\Http\Controllers\Crm\ContactController;
+use App\Http\Controllers\Crm\GoogleContactsOAuthController;
 use App\Http\Controllers\Crm\CustomerController;
 use App\Http\Controllers\Crm\DashboardController;
 use App\Http\Controllers\Crm\DocumentController;
@@ -220,6 +221,10 @@ Route::middleware(['auth', 'verified', 'tenant'])->group(function () {
         Route::get('/contacts', [ContactController::class, 'index'])->name('contacts.index');
         Route::get('/contacts/sample.csv', [ContactController::class, 'sampleCsv'])->name('contacts.sample');
         Route::post('/contacts/import', [ContactController::class, 'import'])->name('contacts.import');
+        Route::get('/contacts/google/connect', [GoogleContactsOAuthController::class, 'connect'])->name('contacts.google.connect');
+        Route::get('/contacts/google/callback', [GoogleContactsOAuthController::class, 'callback'])->name('contacts.google.callback');
+        Route::post('/contacts/google/sync', [GoogleContactsOAuthController::class, 'sync'])->name('contacts.google.sync');
+        Route::post('/contacts/google/disconnect', [GoogleContactsOAuthController::class, 'disconnect'])->name('contacts.google.disconnect');
         Route::post('/contacts', [ContactController::class, 'store'])->name('contacts.store');
         Route::patch('/contacts/{contact}', [ContactController::class, 'update'])->name('contacts.update');
     });

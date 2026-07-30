@@ -24,6 +24,7 @@ class Contact extends Model
         'is_primary',
         'status',
         'notes',
+        'google_resource_name',
         'assigned_user_id',
         'created_by',
     ];
