@@ -5,7 +5,7 @@ import PhoneTextInput from '@/Components/PhoneTextInput';
 import TextInput from '@/Components/TextInput';
 import CrmLayout from '@/Layouts/CrmLayout';
 import { Head, Link, router, useForm, usePage } from '@inertiajs/react';
-import { FormEventHandler, useEffect, useMemo, useState } from 'react';
+import { FormEventHandler, useEffect, useMemo, useRef, useState } from 'react';
 
 type LeadRow = {
     id: number;
@@ -50,6 +50,7 @@ export default function LeadsIndex({
     team,
     leadFields = [],
     stats,
+    openImport,
     roundRobinEnabled = false,
 }: {
     leads: PaginatedLeads;
@@ -59,10 +60,15 @@ export default function LeadsIndex({
     team: Option[];
     leadFields?: CustomFieldDef[];
     stats: { total: number; hot: number; due_today: number };
+    openImport?: boolean;
     roundRobinEnabled?: boolean;
 }) {
-    const flash = (usePage().props as { flash?: { success?: string } }).flash;
+    const flash = (usePage().props as {
+        flash?: { success?: string; import_errors?: string[] };
+    }).flash;
     const [showForm, setShowForm] = useState(false);
+    const [showImport, setShowImport] = useState(!!openImport);
+    const fileRef = useRef<HTMLInputElement>(null);
     const [showColumns, setShowColumns] = useState(false);
     const [showFilters, setShowFilters] = useState(() =>
         Object.values(filters).some((v) => v !== '' && v != null),
@@ -79,6 +85,12 @@ export default function LeadsIndex({
     useEffect(() => {
         setFilterState(filters);
     }, [filters]);
+
+    useEffect(() => {
+        if (openImport) setShowImport(true);
+    }, [openImport]);
+
+    const importForm = useForm<{ file: File | null }>({ file: null });
 
     useEffect(() => {
         try {
@@ -140,6 +152,19 @@ export default function LeadsIndex({
                 reset();
                 setData('custom_fields', emptyCustomFields);
                 setShowForm(false);
+            },
+        });
+    };
+
+    const submitImport: FormEventHandler = (e) => {
+        e.preventDefault();
+        if (!importForm.data.file) return;
+        importForm.post(route('leads.import'), {
+            forceFormData: true,
+            onSuccess: () => {
+                importForm.reset();
+                setShowImport(false);
+                if (fileRef.current) fileRef.current.value = '';
             },
         });
     };
@@ -224,6 +249,17 @@ export default function LeadsIndex({
             {flash?.success && (
                 <div className="mb-4 rounded-xl border border-emerald-200 bg-emerald-50 px-4 py-3 text-sm text-emerald-800 dark:border-emerald-900 dark:bg-emerald-950/40 dark:text-emerald-200">
                     {flash.success}
+                </div>
+            )}
+
+            {flash?.import_errors && flash.import_errors.length > 0 && (
+                <div className="mb-4 rounded-xl border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-900 dark:border-amber-900 dark:bg-amber-950/40 dark:text-amber-100">
+                    <p className="font-semibold">Import notes</p>
+                    <ul className="mt-1 list-inside list-disc">
+                        {flash.import_errors.slice(0, 8).map((err, i) => (
+                            <li key={i}>{err}</li>
+                        ))}
+                    </ul>
                 </div>
             )}
 
@@ -319,13 +355,70 @@ export default function LeadsIndex({
                     </div>
                     <button
                         type="button"
-                        onClick={() => setShowForm(!showForm)}
+                        onClick={() => {
+                            setShowImport(!showImport);
+                            setShowForm(false);
+                        }}
+                        className="rounded-xl border border-slate-200 bg-white px-4 py-2 text-sm font-semibold dark:border-slate-700 dark:bg-slate-900"
+                    >
+                        {showImport ? 'Close' : 'Import CSV'}
+                    </button>
+                    <button
+                        type="button"
+                        onClick={() => {
+                            setShowForm(!showForm);
+                            setShowImport(false);
+                        }}
                         className="rounded-xl bg-emerald-600 px-4 py-2 text-sm font-semibold text-white hover:bg-emerald-500"
                     >
                         {showForm ? 'Close' : '+ Add lead'}
                     </button>
                 </div>
             </div>
+
+            {showImport && (
+                <form
+                    onSubmit={submitImport}
+                    className="mb-4 rounded-2xl border border-slate-200 bg-white p-5 dark:border-slate-800 dark:bg-slate-900"
+                >
+                    <h3 className="font-semibold">Import leads from CSV</h3>
+                    <p className="mt-1 text-sm text-slate-500">
+                        Columns: name, phone, email, status, source, temperature, notes,
+                        next_follow_up_at, assigned_user. Extra columns matching your custom lead
+                        fields are imported too. Each row creates a lead and pipeline deal.
+                    </p>
+                    <div className="mt-4 flex flex-wrap items-end gap-3">
+                        <div className="min-w-[220px] flex-1">
+                            <InputLabel htmlFor="lead_csv_file" value="CSV file" />
+                            <input
+                                ref={fileRef}
+                                id="lead_csv_file"
+                                type="file"
+                                accept=".csv,text/csv"
+                                className={fieldClass}
+                                onChange={(e) =>
+                                    importForm.setData('file', e.target.files?.[0] ?? null)
+                                }
+                                required
+                            />
+                            <InputError message={importForm.errors.file} />
+                        </div>
+                        <a
+                            href={route('leads.sample')}
+                            className="rounded-xl border border-slate-200 px-4 py-2 text-sm font-medium dark:border-slate-700"
+                        >
+                            Sample CSV
+                        </a>
+                        <button
+                            type="submit"
+                            disabled={importForm.processing || !importForm.data.file}
+                            className="rounded-xl bg-emerald-600 px-4 py-2 text-sm font-semibold text-white disabled:opacity-50"
+                        >
+                            Upload
+                        </button>
+                    </div>
+                </form>
+            )}
 
             {showFilters && (
                 <div className="mb-4 rounded-2xl border border-slate-200 bg-white p-4 dark:border-slate-800 dark:bg-slate-900">

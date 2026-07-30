@@ -13,6 +13,7 @@ use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
 use Inertia\Inertia;
 use Inertia\Response;
+use Symfony\Component\HttpFoundation\StreamedResponse;
 
 class EnquiryController extends Controller
 {
@@ -92,6 +93,7 @@ class EnquiryController extends Controller
                 ->orderBy('name')
                 ->get(['id', 'name']),
             'openCreate' => $request->boolean('create'),
+            'openImport' => $request->boolean('import'),
             'roundRobinEnabled' => (bool) ($company->settings['lead_assignment']['enabled'] ?? false),
             'stats' => [
                 'new' => Enquiry::query()->where('status', Enquiry::STATUS_NEW)->count(),
@@ -258,6 +260,52 @@ class EnquiryController extends Controller
             ->with('success', $converted > 0
                 ? "{$converted} enquiry(s) converted to leads."
                 : 'Selected enquiries were already converted.');
+    }
+
+    public function import(Request $request, \App\Services\Crm\CsvImportService $import): RedirectResponse
+    {
+        $request->validate([
+            'file' => 'required|file|mimes:csv,txt|max:5120',
+        ]);
+
+        $result = $import->importEnquiries(
+            $request->user()->company,
+            $request->user(),
+            $request->file('file')
+        );
+
+        $message = "Imported {$result['imported']} enquiries";
+        if ($result['skipped'] > 0) {
+            $message .= ", skipped {$result['skipped']}";
+        }
+
+        return redirect()
+            ->route('enquiries.index')
+            ->with('success', $message.'.')
+            ->with('import_errors', $result['errors']);
+    }
+
+    public function sampleCsv(): StreamedResponse
+    {
+        return response()->streamDownload(function () {
+            $out = fopen('php://output', 'w');
+            fputcsv($out, [
+                'name', 'email', 'phone', 'source', 'channel', 'message', 'assigned_user', 'external_id',
+            ]);
+            fputcsv($out, [
+                'Priya Sharma',
+                'priya@example.com',
+                '+919876543210',
+                'Website',
+                'import',
+                'Interested in enterprise plan',
+                'sales@company.com',
+                'row-001',
+            ]);
+            fclose($out);
+        }, 'enquiries-sample.csv', [
+            'Content-Type' => 'text/csv',
+        ]);
     }
 
     private function authorizeEnquiry(Enquiry $enquiry, Request $request): void

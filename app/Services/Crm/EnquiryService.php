@@ -35,6 +35,8 @@ class EnquiryService
             'phone' => $data['phone'] ?? null,
             'lead_source_id' => $data['lead_source_id'] ?? null,
             'channel' => $data['channel'] ?? null,
+            'platform' => $data['platform'] ?? null,
+            'external_id' => $data['external_id'] ?? null,
             'message' => $data['message'] ?? null,
             'assigned_user_id' => $assignedUserId,
             'created_by' => $user->id,

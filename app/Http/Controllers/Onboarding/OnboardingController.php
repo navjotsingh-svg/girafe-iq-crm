@@ -60,7 +60,7 @@ class OnboardingController extends Controller
             ],
             'importOptions' => [
                 ['value' => 'add_enquiry', 'label' => 'Add First Enquiry', 'hint' => 'Capture a walk-in or phone lead now'],
-                ['value' => 'import_leads', 'label' => 'Import Leads', 'hint' => 'Upload Excel / CSV (coming soon)'],
+                ['value' => 'import_leads', 'label' => 'Import Leads', 'hint' => 'Upload a CSV into Enquiries or Leads after setup'],
                 ['value' => 'connect_source', 'label' => 'Connect Source', 'hint' => 'Ads, website, WhatsApp later'],
                 ['value' => 'sample_data', 'label' => 'Explore Sample Data', 'hint' => 'See how Girafe IQ looks with demo leads'],
                 ['value' => 'skip', 'label' => 'Skip for now', 'hint' => 'Go straight to your ready dashboard'],
@@ -146,6 +146,11 @@ class OnboardingController extends Controller
         if ($importPath === 'add_enquiry') {
             return redirect()->route('enquiries.index', ['create' => 1])
                 ->with('success', 'Welcome to '.config('girafe.name').'! Add your first enquiry.');
+        }
+
+        if ($importPath === 'import_leads') {
+            return redirect()->route('enquiries.index', ['import' => 1])
+                ->with('success', 'Welcome to '.config('girafe.name').'! Import your enquiries or leads from CSV.');
         }
 
         return redirect()->route('dashboard')

@@ -1607,7 +1607,11 @@ function IntegrationsTab({ integrations }: { integrations: IntegrationCard[] }) 
 
                             <p className="text-xs text-slate-500">
                                 Use <strong>Sync existing leads</strong> to import older Meta lead
-                                form submissions from the recent sync window into Enquiries.
+                                form submissions from the recent sync window into Enquiries. This
+                                requires <code className="text-xs">pages_manage_ads</code> and{' '}
+                                <code className="text-xs">leads_retrieval</code> on the connected
+                                Page token — if sync fails, disconnect and reconnect Meta after
+                                your app has those permissions approved in Meta App Review.
                             </p>
 
                             {(meta.meta_pages?.length ?? 0) > 0 ? (

@@ -128,6 +128,14 @@ class MetaOAuthService
                 ]);
             }
 
+            $missing = $this->missingLeadSyncScopes($model->page_access_token);
+            if ($missing !== []) {
+                Log::warning('Meta page token missing lead sync permissions', [
+                    'page_id' => $pageId,
+                    'missing' => $missing,
+                ]);
+            }
+
             $saved[] = $model->fresh();
         }
 
@@ -155,6 +163,42 @@ class MetaOAuthService
         $this->logger->log('integrations.meta_disconnected', $company);
     }
 
+    /**
+     * Permissions required to list lead forms and bulk-sync existing leads.
+     *
+     * @return list<string>
+     */
+    public function requiredLeadSyncScopes(): array
+    {
+        return ['pages_manage_ads', 'leads_retrieval'];
+    }
+
+    /**
+     * @return list<string> Missing scope names (empty = OK).
+     */
+    public function missingLeadSyncScopes(string $accessToken): array
+    {
+        $granted = $this->tokenScopes($accessToken);
+
+        if ($granted === []) {
+            return [];
+        }
+
+        return array_values(array_diff($this->requiredLeadSyncScopes(), $granted));
+    }
+
+    public function leadSyncPermissionError(?array $missing = null): string
+    {
+        $missing = $missing ?? $this->requiredLeadSyncScopes();
+        $list = implode(', ', $missing);
+
+        return 'Missing Meta permission'.(count($missing) === 1 ? '' : 's').": {$list}. "
+            .'Disconnect Meta in Integrations, then connect again with a Facebook user who is a Page admin '
+            .'and can manage Lead Ads on that Page. In Meta App Dashboard → Facebook Login for Business → '
+            .'Configurations, include pages_manage_ads and leads_retrieval, then complete App Review '
+            .'(Advanced Access) for those permissions.';
+    }
+
     public function syncExistingLeads(Company $company, LeadIngestService $ingest, int $days = 30): int
     {
         $created = 0;
@@ -165,7 +209,16 @@ class MetaOAuthService
             ->where('is_active', true)
             ->get();
 
+        if ($pages->isEmpty()) {
+            throw new RuntimeException('No connected Facebook Pages found. Connect Meta first.');
+        }
+
         foreach ($pages as $page) {
+            $missing = $this->missingLeadSyncScopes($page->page_access_token);
+            if ($missing !== []) {
+                throw new RuntimeException($this->leadSyncPermissionError($missing));
+            }
+
             foreach ($this->fetchPageLeads($page, $since) as $lead) {
                 $platform = $page->instagram_business_id ? 'instagram' : 'facebook_ads';
                 $enquiry = $ingest->ingest($company, $platform, $lead, [
@@ -279,6 +332,11 @@ class MetaOAuthService
         );
 
         if (! $response->successful()) {
+            $error = $response->json('error.message', '');
+            if (is_string($error) && str_contains($error, 'pages_manage_ads')) {
+                throw new RuntimeException($this->leadSyncPermissionError(['pages_manage_ads']));
+            }
+
             throw new RuntimeException('Failed to fetch Meta lead forms: '.$response->body());
         }
 
@@ -336,6 +394,51 @@ class MetaOAuthService
             'message' => $get(['message', 'notes', 'comments']),
             'external_id' => $leadId,
         ];
+    }
+
+    /**
+     * @return list<string>
+     */
+    private function tokenScopes(string $accessToken): array
+    {
+        $version = config('services.meta.graph_version', 'v21.0');
+        $appId = config('services.meta.app_id');
+        $appSecret = config('services.meta.app_secret');
+
+        if (! filled($appId) || ! filled($appSecret)) {
+            return [];
+        }
+
+        $response = Http::timeout(15)->get("https://graph.facebook.com/{$version}/debug_token", [
+            'input_token' => $accessToken,
+            'access_token' => $appId.'|'.$appSecret,
+        ]);
+
+        if (! $response->successful()) {
+            Log::warning('Meta debug_token failed', ['body' => $response->body()]);
+
+            return [];
+        }
+
+        $data = $response->json('data', []);
+        if (! is_array($data)) {
+            return [];
+        }
+
+        if (! empty($data['granular_scopes']) && is_array($data['granular_scopes'])) {
+            return collect($data['granular_scopes'])
+                ->pluck('scope')
+                ->filter(fn ($scope) => is_string($scope) && $scope !== '')
+                ->unique()
+                ->values()
+                ->all();
+        }
+
+        $scopes = $data['scopes'] ?? [];
+
+        return is_array($scopes)
+            ? array_values(array_filter($scopes, fn ($scope) => is_string($scope) && $scope !== ''))
+            : [];
     }
 
     public function makeState(Company $company): string

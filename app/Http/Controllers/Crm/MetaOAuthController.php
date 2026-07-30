@@ -84,11 +84,25 @@ class MetaOAuthController extends Controller
             $pages = $meta->handleCallback($company, $code);
             $count = count($pages);
 
-            return redirect()
+            $redirect = redirect()
                 ->route('integrations.index')
                 ->with('success', $count > 0
                     ? "Meta connected — {$count} Facebook Page(s) linked. Lead Ads will sync into Enquiries."
                     : 'Meta connected, but no Facebook Pages were found on this account.');
+
+            $missingScopes = false;
+            foreach ($pages as $page) {
+                if ($meta->missingLeadSyncScopes($page->page_access_token) !== []) {
+                    $missingScopes = true;
+                    break;
+                }
+            }
+
+            if ($missingScopes) {
+                $redirect->with('error', $meta->leadSyncPermissionError());
+            }
+
+            return $redirect;
         } catch (Throwable $e) {
             return redirect()
                 ->route('integrations.index')

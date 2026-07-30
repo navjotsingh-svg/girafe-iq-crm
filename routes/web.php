@@ -114,6 +114,8 @@ Route::middleware(['auth', 'verified', 'tenant'])->group(function () {
     Route::middleware('onboarding.completed')->group(function () {
         Route::get('/dashboard', DashboardController::class)->name('dashboard');
 
+        Route::get('/enquiries/sample.csv', [EnquiryController::class, 'sampleCsv'])->name('enquiries.sample');
+        Route::post('/enquiries/import', [EnquiryController::class, 'import'])->name('enquiries.import');
         Route::get('/enquiries', [EnquiryController::class, 'index'])->name('enquiries.index');
         Route::post('/enquiries', [EnquiryController::class, 'store'])->name('enquiries.store');
         Route::post('/enquiries/bulk-convert', [EnquiryController::class, 'bulkConvert'])->name('enquiries.bulk-convert');
@@ -122,6 +124,8 @@ Route::middleware(['auth', 'verified', 'tenant'])->group(function () {
         Route::post('/enquiries/{enquiry}/log', [EnquiryController::class, 'log'])->name('enquiries.log');
         Route::post('/enquiries/{enquiry}/follow-ups', [EnquiryController::class, 'scheduleFollowUp'])->name('enquiries.follow-ups.store');
 
+        Route::get('/leads/sample.csv', [LeadController::class, 'sampleCsv'])->name('leads.sample');
+        Route::post('/leads/import', [LeadController::class, 'import'])->name('leads.import');
         Route::get('/leads', [LeadController::class, 'index'])->name('leads.index');
         Route::get('/leads/{lead}', [LeadController::class, 'show'])->name('leads.show');
         Route::post('/leads', [LeadController::class, 'store'])->name('leads.store');

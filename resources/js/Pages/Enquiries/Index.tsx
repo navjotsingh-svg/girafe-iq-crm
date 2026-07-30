@@ -4,7 +4,7 @@ import PhoneTextInput from '@/Components/PhoneTextInput';
 import TextInput from '@/Components/TextInput';
 import CrmLayout from '@/Layouts/CrmLayout';
 import { Head, Link, router, useForm, usePage } from '@inertiajs/react';
-import { FormEventHandler, useEffect, useMemo, useState } from 'react';
+import { FormEventHandler, useEffect, useMemo, useRef, useState } from 'react';
 
 type EnquiryRow = {
     id: number;
@@ -51,6 +51,7 @@ export default function EnquiriesIndex({
     team,
     stats,
     openCreate,
+    openImport,
     roundRobinEnabled = false,
 }: {
     enquiries: {
@@ -62,10 +63,15 @@ export default function EnquiriesIndex({
     team: Option[];
     stats: { new: number; in_progress: number; converted: number };
     openCreate?: boolean;
+    openImport?: boolean;
     roundRobinEnabled?: boolean;
 }) {
-    const flash = (usePage().props as { flash?: { success?: string } }).flash;
+    const flash = (usePage().props as {
+        flash?: { success?: string; import_errors?: string[] };
+    }).flash;
     const [showForm, setShowForm] = useState(!!openCreate);
+    const [showImport, setShowImport] = useState(!!openImport);
+    const fileRef = useRef<HTMLInputElement>(null);
     const [showFilters, setShowFilters] = useState(() =>
         Object.values(filters).some((v) => v !== ''),
     );
@@ -77,8 +83,14 @@ export default function EnquiriesIndex({
     }, [openCreate]);
 
     useEffect(() => {
+        if (openImport) setShowImport(true);
+    }, [openImport]);
+
+    useEffect(() => {
         setFilterState(filters);
     }, [filters]);
+
+    const importForm = useForm<{ file: File | null }>({ file: null });
 
     const { data, setData, post, processing, errors, reset } = useForm({
         name: '',
@@ -96,6 +108,19 @@ export default function EnquiriesIndex({
             onSuccess: () => {
                 reset();
                 setShowForm(false);
+            },
+        });
+    };
+
+    const submitImport: FormEventHandler = (e) => {
+        e.preventDefault();
+        if (!importForm.data.file) return;
+        importForm.post(route('enquiries.import'), {
+            forceFormData: true,
+            onSuccess: () => {
+                importForm.reset();
+                setShowImport(false);
+                if (fileRef.current) fileRef.current.value = '';
             },
         });
     };
@@ -165,6 +190,17 @@ export default function EnquiriesIndex({
                 </div>
             )}
 
+            {flash?.import_errors && flash.import_errors.length > 0 && (
+                <div className="mb-4 rounded-xl border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-900 dark:border-amber-900 dark:bg-amber-950/40 dark:text-amber-100">
+                    <p className="font-semibold">Import notes</p>
+                    <ul className="mt-1 list-inside list-disc">
+                        {flash.import_errors.slice(0, 8).map((err, i) => (
+                            <li key={i}>{err}</li>
+                        ))}
+                    </ul>
+                </div>
+            )}
+
             <div className="mb-6 flex flex-wrap items-center justify-between gap-3">
                 <div>
                     <h2 className="text-xl font-bold">Marketing Enquiries</h2>
@@ -172,14 +208,73 @@ export default function EnquiriesIndex({
                         Capture walk-ins, calls, ads & website leads
                     </p>
                 </div>
-                <button
-                    type="button"
-                    onClick={() => setShowForm(!showForm)}
-                    className="rounded-xl bg-emerald-600 px-4 py-2 text-sm font-semibold text-white hover:bg-emerald-500"
-                >
-                    {showForm ? 'Close form' : '+ Add enquiry'}
-                </button>
+                <div className="flex flex-wrap gap-2">
+                    <button
+                        type="button"
+                        onClick={() => {
+                            setShowImport(!showImport);
+                            setShowForm(false);
+                        }}
+                        className="rounded-xl border border-slate-200 bg-white px-4 py-2 text-sm font-semibold dark:border-slate-700 dark:bg-slate-900"
+                    >
+                        {showImport ? 'Close' : 'Import CSV'}
+                    </button>
+                    <button
+                        type="button"
+                        onClick={() => {
+                            setShowForm(!showForm);
+                            setShowImport(false);
+                        }}
+                        className="rounded-xl bg-emerald-600 px-4 py-2 text-sm font-semibold text-white hover:bg-emerald-500"
+                    >
+                        {showForm ? 'Close form' : '+ Add enquiry'}
+                    </button>
+                </div>
             </div>
+
+            {showImport && (
+                <form
+                    onSubmit={submitImport}
+                    className="mb-6 rounded-2xl border border-slate-200 bg-white p-5 dark:border-slate-800 dark:bg-slate-900"
+                >
+                    <h3 className="font-semibold">Import enquiries from CSV</h3>
+                    <p className="mt-1 text-sm text-slate-500">
+                        Columns: name, email, phone, source, channel, message, assigned_user,
+                        external_id. Use <code className="text-xs">external_id</code> to avoid
+                        duplicate rows on re-import.
+                    </p>
+                    <div className="mt-4 flex flex-wrap items-end gap-3">
+                        <div className="min-w-[220px] flex-1">
+                            <InputLabel htmlFor="enquiry_csv_file" value="CSV file" />
+                            <input
+                                ref={fileRef}
+                                id="enquiry_csv_file"
+                                type="file"
+                                accept=".csv,text/csv"
+                                className={fieldClass}
+                                onChange={(e) =>
+                                    importForm.setData('file', e.target.files?.[0] ?? null)
+                                }
+                                required
+                            />
+                            <InputError message={importForm.errors.file} />
+                        </div>
+                        <a
+                            href={route('enquiries.sample')}
+                            className="rounded-xl border border-slate-200 px-4 py-2 text-sm font-medium dark:border-slate-700"
+                        >
+                            Sample CSV
+                        </a>
+                        <button
+                            type="submit"
+                            disabled={importForm.processing || !importForm.data.file}
+                            className="rounded-xl bg-emerald-600 px-4 py-2 text-sm font-semibold text-white disabled:opacity-50"
+                        >
+                            Upload
+                        </button>
+                    </div>
+                </form>
+            )}
 
             <div className="mb-6 grid gap-3 sm:grid-cols-3">
                 <StatCard label="New" value={stats.new} />

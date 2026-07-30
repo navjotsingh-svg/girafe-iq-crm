@@ -24,6 +24,7 @@ use Illuminate\Http\Request;
 use Illuminate\Validation\ValidationException;
 use Inertia\Inertia;
 use Inertia\Response;
+use Symfony\Component\HttpFoundation\StreamedResponse;
 
 class LeadController extends Controller
 {
@@ -105,6 +106,7 @@ class LeadController extends Controller
                 ->orderBy('name')
                 ->get(['id', 'name']),
             'leadFields' => $this->leadFieldsForUi(),
+            'openImport' => $request->boolean('import'),
             'roundRobinEnabled' => (bool) ($company->settings['lead_assignment']['enabled'] ?? false),
             'stats' => [
                 'total' => Lead::query()->count(),
@@ -515,5 +517,52 @@ class LeadController extends Controller
             || $user->getRoleNames()->contains('manager')
             || $user->getRoleNames()->contains('company_admin')
             || $user->getRoleNames()->contains('super_admin');
+    }
+
+    public function import(Request $request, \App\Services\Crm\CsvImportService $import): RedirectResponse
+    {
+        $request->validate([
+            'file' => 'required|file|mimes:csv,txt|max:5120',
+        ]);
+
+        $result = $import->importLeads(
+            $request->user()->company,
+            $request->user(),
+            $request->file('file')
+        );
+
+        $message = "Imported {$result['imported']} leads";
+        if ($result['skipped'] > 0) {
+            $message .= ", skipped {$result['skipped']}";
+        }
+
+        return redirect()
+            ->route('leads.index')
+            ->with('success', $message.'.')
+            ->with('import_errors', $result['errors']);
+    }
+
+    public function sampleCsv(): StreamedResponse
+    {
+        return response()->streamDownload(function () {
+            $out = fopen('php://output', 'w');
+            fputcsv($out, [
+                'name', 'phone', 'email', 'status', 'source', 'temperature', 'notes', 'next_follow_up_at', 'assigned_user',
+            ]);
+            fputcsv($out, [
+                'Rahul Verma',
+                '+919988776655',
+                'rahul@example.com',
+                'New',
+                'Referral',
+                'warm',
+                'Called once, asked for brochure',
+                '2026-08-01 10:00',
+                'sales@company.com',
+            ]);
+            fclose($out);
+        }, 'leads-sample.csv', [
+            'Content-Type' => 'text/csv',
+        ]);
     }
 }
