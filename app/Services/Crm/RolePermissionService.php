@@ -80,8 +80,6 @@ class RolePermissionService
      */
     public function matrixForUi(Company $company): array
     {
-        $this->ensureCompanyRoles($company);
-
         $editable = config('permissions.editable_roles', []);
         $roles = collect($editable)
             ->map(fn (string $r) => [

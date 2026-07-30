@@ -32,7 +32,7 @@ class SettingsController extends Controller
 
         $pipeline = Pipeline::resolveForCompany($company->id);
 
-        if ($pipeline) {
+        if ($pipeline && $tab === 'pipeline') {
             app(SettingsService::class)->ensureOpenStagesBeforeClosed($pipeline);
         }
 
@@ -43,7 +43,9 @@ class SettingsController extends Controller
             ])
             ->values();
 
-        $boardStages = $pipeline ? $pipeline->stagesForBoard() : collect();
+        $boardStages = $pipeline
+            ? $pipeline->stagesForBoard(['deals'])
+            : collect();
 
         return Inertia::render('Settings/Index', [
             'tab' => $tab,
@@ -82,7 +84,7 @@ class SettingsController extends Controller
                     'sort_order' => $s->sort_order,
                     'is_won' => $s->is_won,
                     'is_lost' => $s->is_lost,
-                    'deals_count' => $s->deals()->count(),
+                    'deals_count' => $s->deals_count,
                 ])->values(),
             ] : null,
             'timezones' => [
@@ -112,7 +114,9 @@ class SettingsController extends Controller
             ],
             'integrations' => app(SettingsService::class)->integrationsForUi($company),
             'leadAssignment' => app(SettingsService::class)->leadAssignmentForUi($company),
-            'rolePermissions' => $this->safeRolePermissionsMatrix($company),
+            'rolePermissions' => $tab === 'permissions'
+                ? $this->safeRolePermissionsMatrix($company)
+                : null,
             'selectedRole' => (string) $request->get('role', 'sales_executive'),
             'team' => User::query()
                 ->where('company_id', $company->id)

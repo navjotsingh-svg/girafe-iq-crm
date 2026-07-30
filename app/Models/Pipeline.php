@@ -51,15 +51,21 @@ class Pipeline extends Model
     /**
      * All stages for this pipeline (company already verified).
      *
+     * @param  list<string>  $withCount
      * @return \Illuminate\Database\Eloquent\Collection<int, PipelineStage>
      */
-    public function stagesForBoard()
+    public function stagesForBoard(array $withCount = [])
     {
-        return PipelineStage::query()
+        $query = PipelineStage::query()
             ->where('pipeline_id', $this->id)
             ->where('company_id', $this->company_id)
             ->orderBy('sort_order')
-            ->orderBy('id')
-            ->get();
+            ->orderBy('id');
+
+        foreach ($withCount as $relation) {
+            $query->withCount($relation);
+        }
+
+        return $query->get();
     }
 }
