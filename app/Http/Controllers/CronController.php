@@ -10,6 +10,7 @@ class CronController extends Controller
 {
     public function run(Request $request, CronService $cron, ?string $job = null): JsonResponse
     {
+        
         $only = null;
 
         if ($job) {
