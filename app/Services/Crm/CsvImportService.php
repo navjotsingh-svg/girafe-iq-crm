@@ -162,9 +162,10 @@ class CsvImportService
     }
 
     /**
+     * @param  array<string, string>  $mapping  CRM field => normalized CSV column key
      * @return array{imported: int, skipped: int, errors: list<string>}
      */
-    public function importEnquiries(Company $company, User $user, UploadedFile $file): array
+    public function importEnquiries(Company $company, User $user, UploadedFile $file, array $mapping = []): array
     {
         $rows = $this->parseCsv($file);
         if ($rows === []) {
@@ -177,7 +178,8 @@ class CsvImportService
 
         foreach ($rows as $i => $row) {
             $line = $i + 2;
-            $name = trim((string) ($row['name'] ?? ''));
+            $mapped = $this->mapImportRow($row, $mapping, self::enquiryFieldAliases());
+            $name = trim((string) ($mapped['name'] ?? ''));
 
             if ($name === '') {
                 $skipped++;
@@ -187,8 +189,8 @@ class CsvImportService
 
             $payload = [
                 'name' => $name,
-                'email' => $this->nullIfEmpty($row['email'] ?? null),
-                'phone' => $this->nullIfEmpty($row['phone'] ?? null),
+                'email' => $this->nullIfEmpty($mapped['email'] ?? null),
+                'phone' => $this->nullIfEmpty($mapped['phone'] ?? null),
             ];
 
             if ($error = $this->validateImportRow($payload, [
@@ -201,7 +203,7 @@ class CsvImportService
                 continue;
             }
 
-            $externalId = $this->nullIfEmpty($row['external_id'] ?? $row['id'] ?? null);
+            $externalId = $this->nullIfEmpty($mapped['external_id'] ?? null);
             if ($externalId) {
                 $exists = Enquiry::query()
                     ->where('company_id', $company->id)
@@ -222,13 +224,13 @@ class CsvImportService
                     'phone' => $payload['phone'],
                     'lead_source_id' => $this->resolveLeadSourceId(
                         $company,
-                        $this->nullIfEmpty($row['source'] ?? $row['lead_source'] ?? null)
+                        $this->nullIfEmpty($mapped['source'] ?? null)
                     ),
-                    'channel' => $this->nullIfEmpty($row['channel'] ?? null) ?? 'import',
-                    'message' => $this->nullIfEmpty($row['message'] ?? $row['notes'] ?? null),
+                    'channel' => $this->nullIfEmpty($mapped['channel'] ?? null) ?? 'import',
+                    'message' => $this->nullIfEmpty($mapped['message'] ?? null),
                     'assigned_user_id' => $this->resolveUserId(
                         $company,
-                        $this->nullIfEmpty($row['assigned_user'] ?? $row['assignee'] ?? $row['assigned_to'] ?? null)
+                        $this->nullIfEmpty($mapped['assigned_user'] ?? null)
                     ),
                     'platform' => 'csv_import',
                     'external_id' => $externalId,
@@ -253,9 +255,10 @@ class CsvImportService
     }
 
     /**
+     * @param  array<string, string>  $mapping
      * @return array{imported: int, skipped: int, errors: list<string>}
      */
-    public function importLeads(Company $company, User $user, UploadedFile $file): array
+    public function importLeads(Company $company, User $user, UploadedFile $file, array $mapping = []): array
     {
         $rows = $this->parseCsv($file);
         if ($rows === []) {
@@ -274,7 +277,8 @@ class CsvImportService
 
         foreach ($rows as $i => $row) {
             $line = $i + 2;
-            $name = trim((string) ($row['name'] ?? ''));
+            $mapped = $this->mapImportRow($row, $mapping, self::leadFieldAliases());
+            $name = trim((string) ($mapped['name'] ?? ''));
 
             if ($name === '') {
                 $skipped++;
@@ -284,8 +288,8 @@ class CsvImportService
 
             $payload = [
                 'name' => $name,
-                'email' => $this->nullIfEmpty($row['email'] ?? null),
-                'phone' => $this->nullIfEmpty($row['phone'] ?? null),
+                'email' => $this->nullIfEmpty($mapped['email'] ?? null),
+                'phone' => $this->nullIfEmpty($mapped['phone'] ?? null),
             ];
 
             if ($error = $this->validateImportRow($payload, [
@@ -298,20 +302,17 @@ class CsvImportService
                 continue;
             }
 
-            $temperature = strtolower((string) ($row['temperature'] ?? 'warm'));
-            if (! in_array($temperature, ['cold', 'warm', 'hot'], true)) {
-                $skipped++;
-                $errors[] = "Line {$line}: temperature must be cold, warm, or hot";
-                continue;
-            }
+            $temperature = $this->normalizeTemperature($mapped['temperature'] ?? null);
 
             $customFieldValues = [];
             foreach ($customFields as $field) {
-                if (! array_key_exists($field->key, $row)) {
-                    continue;
+                $value = null;
+                if (isset($mapping[$field->key]) && $mapping[$field->key] !== '') {
+                    $value = $this->nullIfEmpty($row[$mapping[$field->key]] ?? null);
+                } elseif (isset($row[$field->key])) {
+                    $value = $this->nullIfEmpty($row[$field->key]);
                 }
 
-                $value = $this->nullIfEmpty($row[$field->key]);
                 if ($value === null) {
                     continue;
                 }
@@ -324,9 +325,7 @@ class CsvImportService
                     );
                 } elseif ($field->type === 'number') {
                     if (! is_numeric($value)) {
-                        $skipped++;
-                        $errors[] = "Line {$line}: {$field->key} must be a number";
-                        continue 2;
+                        continue;
                     }
                     $customFieldValues[$field->key] = $value;
                 } else {
@@ -341,18 +340,18 @@ class CsvImportService
                     'phone' => $payload['phone'],
                     'lead_status_id' => $this->resolveLeadStatusId(
                         $company,
-                        $this->nullIfEmpty($row['status'] ?? $row['lead_status'] ?? null)
+                        $this->nullIfEmpty($mapped['status'] ?? null)
                     ),
                     'lead_source_id' => $this->resolveLeadSourceId(
                         $company,
-                        $this->nullIfEmpty($row['source'] ?? $row['lead_source'] ?? null)
+                        $this->nullIfEmpty($mapped['source'] ?? null)
                     ),
                     'temperature' => $temperature,
-                    'notes' => $this->nullIfEmpty($row['notes'] ?? null),
-                    'next_follow_up_at' => $this->nullIfEmpty($row['next_follow_up_at'] ?? $row['follow_up'] ?? null),
+                    'notes' => $this->nullIfEmpty($mapped['notes'] ?? null),
+                    'next_follow_up_at' => $this->nullIfEmpty($mapped['next_follow_up_at'] ?? null),
                     'assigned_user_id' => $this->resolveUserId(
                         $company,
-                        $this->nullIfEmpty($row['assigned_user'] ?? $row['assignee'] ?? $row['assigned_to'] ?? null)
+                        $this->nullIfEmpty($mapped['assigned_user'] ?? null)
                     ),
                     'custom_fields' => $customFieldValues !== [] ? $customFieldValues : null,
                 ]);
@@ -372,6 +371,81 @@ class CsvImportService
             'imported' => $imported,
             'skipped' => $skipped,
             'errors' => array_slice($errors, 0, 20),
+        ];
+    }
+
+    /**
+     * @param  array<string, string>  $row
+     * @param  array<string, string>  $mapping
+     * @param  array<string, list<string>>  $aliases
+     * @return array<string, string>
+     */
+    private function mapImportRow(array $row, array $mapping, array $aliases): array
+    {
+        $mapped = [];
+
+        foreach ($aliases as $field => $keys) {
+            if (isset($mapping[$field]) && $mapping[$field] !== '') {
+                $mapped[$field] = trim((string) ($row[$mapping[$field]] ?? ''));
+
+                continue;
+            }
+
+            foreach ($keys as $key) {
+                if (isset($row[$key]) && trim((string) $row[$key]) !== '') {
+                    $mapped[$field] = trim((string) $row[$key]);
+                    break;
+                }
+            }
+        }
+
+        return $mapped;
+    }
+
+    private function normalizeTemperature(?string $value): string
+    {
+        $value = strtolower(trim((string) $value));
+
+        if (in_array($value, ['cold', 'warm', 'hot'], true)) {
+            return $value;
+        }
+
+        return 'warm';
+    }
+
+    /**
+     * @return array<string, list<string>>
+     */
+    private static function leadFieldAliases(): array
+    {
+        return [
+            'name' => ['name', 'full_name', 'fullname', 'lead_name', 'customer_name', 'contact_name'],
+            'phone' => ['phone', 'mobile', 'phone_number', 'mobile_number', 'contact_number', 'tel', 'telephone', 'cell'],
+            'email' => ['email', 'email_address', 'e_mail', 'mail'],
+            'status' => ['status', 'lead_status', 'stage'],
+            'source' => ['source', 'lead_source', 'campaign', 'utm_source'],
+            'temperature' => ['temperature', 'temp', 'lead_temperature', 'priority'],
+            'notes' => ['notes', 'note', 'message', 'comments', 'remark', 'remarks'],
+            'next_follow_up_at' => ['next_follow_up_at', 'follow_up', 'followup', 'follow_up_date', 'next_followup'],
+            'assigned_user' => ['assigned_user', 'assignee', 'assigned_to', 'owner', 'sales_person'],
+            'external_id' => ['external_id', 'id', 'lead_id', 'reference'],
+        ];
+    }
+
+    /**
+     * @return array<string, list<string>>
+     */
+    private static function enquiryFieldAliases(): array
+    {
+        return [
+            'name' => ['name', 'full_name', 'fullname', 'customer_name', 'contact_name'],
+            'phone' => ['phone', 'mobile', 'phone_number', 'mobile_number', 'contact_number', 'tel', 'telephone'],
+            'email' => ['email', 'email_address', 'e_mail', 'mail'],
+            'source' => ['source', 'lead_source', 'campaign'],
+            'channel' => ['channel', 'medium', 'utm_medium'],
+            'message' => ['message', 'notes', 'note', 'comments', 'inquiry'],
+            'assigned_user' => ['assigned_user', 'assignee', 'assigned_to', 'owner'],
+            'external_id' => ['external_id', 'id', 'reference'],
         ];
     }
 

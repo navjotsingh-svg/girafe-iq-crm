@@ -264,14 +264,17 @@ class EnquiryController extends Controller
 
     public function import(Request $request, \App\Services\Crm\CsvImportService $import): RedirectResponse
     {
-        $request->validate([
+        $data = $request->validate([
             'file' => 'required|file|mimes:csv,txt|max:5120',
+            'mapping' => 'nullable|array',
+            'mapping.*' => 'nullable|string|max:100',
         ]);
 
         $result = $import->importEnquiries(
             $request->user()->company,
             $request->user(),
-            $request->file('file')
+            $request->file('file'),
+            $data['mapping'] ?? []
         );
 
         $message = "Imported {$result['imported']} enquiries";

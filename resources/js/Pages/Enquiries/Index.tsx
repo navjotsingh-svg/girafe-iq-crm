@@ -2,9 +2,11 @@ import InputError from '@/Components/InputError';
 import InputLabel from '@/Components/InputLabel';
 import PhoneTextInput from '@/Components/PhoneTextInput';
 import TextInput from '@/Components/TextInput';
+import CsvImportPanel from '@/Components/CsvImportPanel';
 import CrmLayout from '@/Layouts/CrmLayout';
+import { ENQUIRY_IMPORT_FIELDS } from '@/Lib/csvImport';
 import { Head, Link, router, useForm, usePage } from '@inertiajs/react';
-import { FormEventHandler, useEffect, useMemo, useRef, useState } from 'react';
+import { FormEventHandler, useEffect, useMemo, useState } from 'react';
 
 type EnquiryRow = {
     id: number;
@@ -71,7 +73,6 @@ export default function EnquiriesIndex({
     }).flash;
     const [showForm, setShowForm] = useState(!!openCreate);
     const [showImport, setShowImport] = useState(!!openImport);
-    const fileRef = useRef<HTMLInputElement>(null);
     const [showFilters, setShowFilters] = useState(() =>
         Object.values(filters).some((v) => v !== ''),
     );
@@ -90,8 +91,6 @@ export default function EnquiriesIndex({
         setFilterState(filters);
     }, [filters]);
 
-    const importForm = useForm<{ file: File | null }>({ file: null });
-
     const { data, setData, post, processing, errors, reset } = useForm({
         name: '',
         email: '',
@@ -108,19 +107,6 @@ export default function EnquiriesIndex({
             onSuccess: () => {
                 reset();
                 setShowForm(false);
-            },
-        });
-    };
-
-    const submitImport: FormEventHandler = (e) => {
-        e.preventDefault();
-        if (!importForm.data.file) return;
-        importForm.post(route('enquiries.import'), {
-            forceFormData: true,
-            onSuccess: () => {
-                importForm.reset();
-                setShowImport(false);
-                if (fileRef.current) fileRef.current.value = '';
             },
         });
     };
@@ -239,15 +225,8 @@ export default function EnquiriesIndex({
             </div>
 
             <div className="mb-6 rounded-2xl border border-dashed border-emerald-200 bg-emerald-50/50 px-4 py-3 text-sm text-emerald-900 dark:border-emerald-900 dark:bg-emerald-950/20 dark:text-emerald-100">
-                <span className="font-semibold">Bulk import:</span> upload a CSV to create enquiries
-                here, or{' '}
-                <Link
-                    href={route('leads.index', { import: 1 })}
-                    className="font-semibold underline"
-                >
-                    import leads directly
-                </Link>{' '}
-                into the pipeline.{' '}
+                <span className="font-semibold">Bulk import:</span> upload any CSV and map your columns
+                (only <strong>name</strong> required here).{' '}
                 <button
                     type="button"
                     onClick={() => {
@@ -256,63 +235,27 @@ export default function EnquiriesIndex({
                     }}
                     className="font-semibold underline"
                 >
-                    Open import form
-                </button>
+                    Open import
+                </button>{' '}
+                or{' '}
+                <Link
+                    href={route('leads.index', { import: 1 })}
+                    className="font-semibold underline"
+                >
+                    import leads directly
+                </Link>
+                .
             </div>
 
             {showImport && (
-                <form
-                    onSubmit={submitImport}
-                    className="mb-6 rounded-2xl border border-slate-200 bg-white p-5 dark:border-slate-800 dark:bg-slate-900"
-                >
-                    <div className="flex flex-wrap items-start justify-between gap-3">
-                        <div>
-                            <h3 className="font-semibold">Import enquiries from CSV</h3>
-                            <p className="mt-1 text-sm text-slate-500">
-                                Columns: name, email, phone, source, channel, message, assigned_user,
-                                external_id. Use <code className="text-xs">external_id</code> to avoid
-                                duplicate rows on re-import.
-                            </p>
-                        </div>
-                        <button
-                            type="button"
-                            onClick={() => setShowImport(false)}
-                            className="text-sm font-medium text-slate-500 hover:text-slate-800"
-                        >
-                            Close
-                        </button>
-                    </div>
-                    <div className="mt-4 flex flex-wrap items-end gap-3">
-                        <div className="min-w-[220px] flex-1">
-                            <InputLabel htmlFor="enquiry_csv_file" value="CSV file" />
-                            <input
-                                ref={fileRef}
-                                id="enquiry_csv_file"
-                                type="file"
-                                accept=".csv,text/csv"
-                                className={fieldClass}
-                                onChange={(e) =>
-                                    importForm.setData('file', e.target.files?.[0] ?? null)
-                                }
-                                required
-                            />
-                            <InputError message={importForm.errors.file} />
-                        </div>
-                        <a
-                            href={route('enquiries.sample')}
-                            className="rounded-xl border border-slate-200 px-4 py-2 text-sm font-medium dark:border-slate-700"
-                        >
-                            Sample CSV
-                        </a>
-                        <button
-                            type="submit"
-                            disabled={importForm.processing || !importForm.data.file}
-                            className="rounded-xl bg-emerald-600 px-4 py-2 text-sm font-semibold text-white disabled:opacity-50"
-                        >
-                            Upload
-                        </button>
-                    </div>
-                </form>
+                <CsvImportPanel
+                    title="Import enquiries from CSV"
+                    description="Upload any spreadsheet export. Map your file columns to CRM fields — optional fields can be skipped."
+                    importRoute={route('enquiries.import')}
+                    sampleRoute={route('enquiries.sample')}
+                    fields={ENQUIRY_IMPORT_FIELDS}
+                    onClose={() => setShowImport(false)}
+                />
             )}
 
             <div className="mb-6 grid gap-3 sm:grid-cols-3">

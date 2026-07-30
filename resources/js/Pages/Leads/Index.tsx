@@ -1,11 +1,13 @@
 import CustomFieldInputs, { CustomFieldDef } from '@/Components/CustomFieldInputs';
+import CsvImportPanel from '@/Components/CsvImportPanel';
 import InputError from '@/Components/InputError';
 import InputLabel from '@/Components/InputLabel';
 import PhoneTextInput from '@/Components/PhoneTextInput';
 import TextInput from '@/Components/TextInput';
 import CrmLayout from '@/Layouts/CrmLayout';
+import { LEAD_IMPORT_FIELDS } from '@/Lib/csvImport';
 import { Head, Link, router, useForm, usePage } from '@inertiajs/react';
-import { FormEventHandler, useEffect, useMemo, useRef, useState } from 'react';
+import { FormEventHandler, useEffect, useMemo, useState } from 'react';
 
 type LeadRow = {
     id: number;
@@ -68,7 +70,6 @@ export default function LeadsIndex({
     }).flash;
     const [showForm, setShowForm] = useState(false);
     const [showImport, setShowImport] = useState(!!openImport);
-    const fileRef = useRef<HTMLInputElement>(null);
     const [showColumns, setShowColumns] = useState(false);
     const [showFilters, setShowFilters] = useState(() =>
         Object.values(filters).some((v) => v !== '' && v != null),
@@ -90,7 +91,15 @@ export default function LeadsIndex({
         if (openImport) setShowImport(true);
     }, [openImport]);
 
-    const importForm = useForm<{ file: File | null }>({ file: null });
+    const leadImportExtraFields = useMemo(
+        () =>
+            leadFields.map((field) => ({
+                key: field.key,
+                label: field.name,
+                aliases: [field.key],
+            })),
+        [leadFields],
+    );
 
     useEffect(() => {
         try {
@@ -152,19 +161,6 @@ export default function LeadsIndex({
                 reset();
                 setData('custom_fields', emptyCustomFields);
                 setShowForm(false);
-            },
-        });
-    };
-
-    const submitImport: FormEventHandler = (e) => {
-        e.preventDefault();
-        if (!importForm.data.file) return;
-        importForm.post(route('leads.import'), {
-            forceFormData: true,
-            onSuccess: () => {
-                importForm.reset();
-                setShowImport(false);
-                if (fileRef.current) fileRef.current.value = '';
             },
         });
     };
@@ -382,8 +378,8 @@ export default function LeadsIndex({
             </div>
 
             <div className="mb-4 rounded-2xl border border-dashed border-emerald-200 bg-emerald-50/50 px-4 py-3 text-sm text-emerald-900 dark:border-emerald-900 dark:bg-emerald-950/20 dark:text-emerald-100">
-                <span className="font-semibold">Bulk import:</span> each CSV row creates a lead and
-                pipeline deal.{' '}
+                <span className="font-semibold">Bulk import:</span> upload any CSV, map your columns
+                (only <strong>name</strong> and <strong>mobile</strong> required), and import.{' '}
                 <button
                     type="button"
                     onClick={() => {
@@ -392,15 +388,8 @@ export default function LeadsIndex({
                     }}
                     className="font-semibold underline"
                 >
-                    Open import form
-                </button>{' '}
-                or{' '}
-                <a
-                    href={route('leads.sample')}
-                    className="font-semibold underline"
-                >
-                    download sample CSV
-                </a>
+                    Open import
+                </button>
                 . For marketing inbox first, use{' '}
                 <Link href={route('enquiries.index', { import: 1 })} className="font-semibold underline">
                     Enquiries → Import enquiries
@@ -409,58 +398,15 @@ export default function LeadsIndex({
             </div>
 
             {showImport && (
-                <form
-                    onSubmit={submitImport}
-                    className="mb-4 rounded-2xl border border-slate-200 bg-white p-5 dark:border-slate-800 dark:bg-slate-900"
-                >
-                    <div className="flex flex-wrap items-start justify-between gap-3">
-                        <div>
-                            <h3 className="font-semibold">Import leads from CSV</h3>
-                            <p className="mt-1 text-sm text-slate-500">
-                                Columns: name, phone, email, status, source, temperature, notes,
-                                next_follow_up_at, assigned_user. Extra columns matching your custom lead
-                                fields are imported too.
-                            </p>
-                        </div>
-                        <button
-                            type="button"
-                            onClick={() => setShowImport(false)}
-                            className="text-sm font-medium text-slate-500 hover:text-slate-800"
-                        >
-                            Close
-                        </button>
-                    </div>
-                    <div className="mt-4 flex flex-wrap items-end gap-3">
-                        <div className="min-w-[220px] flex-1">
-                            <InputLabel htmlFor="lead_csv_file" value="CSV file" />
-                            <input
-                                ref={fileRef}
-                                id="lead_csv_file"
-                                type="file"
-                                accept=".csv,text/csv"
-                                className={fieldClass}
-                                onChange={(e) =>
-                                    importForm.setData('file', e.target.files?.[0] ?? null)
-                                }
-                                required
-                            />
-                            <InputError message={importForm.errors.file} />
-                        </div>
-                        <a
-                            href={route('leads.sample')}
-                            className="rounded-xl border border-slate-200 px-4 py-2 text-sm font-medium dark:border-slate-700"
-                        >
-                            Sample CSV
-                        </a>
-                        <button
-                            type="submit"
-                            disabled={importForm.processing || !importForm.data.file}
-                            className="rounded-xl bg-emerald-600 px-4 py-2 text-sm font-semibold text-white disabled:opacity-50"
-                        >
-                            Upload
-                        </button>
-                    </div>
-                </form>
+                <CsvImportPanel
+                    title="Import leads from CSV"
+                    description="Upload a spreadsheet export from Excel, Google Sheets, or any CRM. We auto-detect columns — you can adjust the mapping before importing."
+                    importRoute={route('leads.import')}
+                    sampleRoute={route('leads.sample')}
+                    fields={LEAD_IMPORT_FIELDS}
+                    extraFields={leadImportExtraFields}
+                    onClose={() => setShowImport(false)}
+                />
             )}
 
             {showFilters && (
