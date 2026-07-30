@@ -265,7 +265,12 @@ export default function LeadsIndex({
 
             <div className="mb-4 flex flex-wrap items-center justify-between gap-3">
                 <div className="flex min-w-0 flex-wrap items-center gap-x-4 gap-y-2">
-                    <h2 className="text-xl font-bold">Leads</h2>
+                    <div>
+                        <h2 className="text-xl font-bold">Leads</h2>
+                        <p className="text-sm text-slate-500">
+                            Qualified leads in your sales pipeline
+                        </p>
+                    </div>
                     <div className="flex flex-wrap items-center gap-x-3 gap-y-1 text-sm">
                         <StatLink
                             label="Total"
@@ -289,7 +294,17 @@ export default function LeadsIndex({
                         />
                     </div>
                 </div>
-                <div className="flex flex-wrap items-center gap-2">
+                <div className="flex w-full flex-wrap items-center gap-2 sm:w-auto">
+                    <button
+                        type="button"
+                        onClick={() => {
+                            setShowImport(true);
+                            setShowForm(false);
+                        }}
+                        className="rounded-xl border border-emerald-200 bg-emerald-50 px-4 py-2 text-sm font-semibold text-emerald-800 dark:border-emerald-900 dark:bg-emerald-950/40 dark:text-emerald-200"
+                    >
+                        Import leads
+                    </button>
                     <button
                         type="button"
                         onClick={() => setShowFilters((v) => !v)}
@@ -356,16 +371,6 @@ export default function LeadsIndex({
                     <button
                         type="button"
                         onClick={() => {
-                            setShowImport(!showImport);
-                            setShowForm(false);
-                        }}
-                        className="rounded-xl border border-slate-200 bg-white px-4 py-2 text-sm font-semibold dark:border-slate-700 dark:bg-slate-900"
-                    >
-                        {showImport ? 'Close' : 'Import CSV'}
-                    </button>
-                    <button
-                        type="button"
-                        onClick={() => {
                             setShowForm(!showForm);
                             setShowImport(false);
                         }}
@@ -376,17 +381,55 @@ export default function LeadsIndex({
                 </div>
             </div>
 
+            <div className="mb-4 rounded-2xl border border-dashed border-emerald-200 bg-emerald-50/50 px-4 py-3 text-sm text-emerald-900 dark:border-emerald-900 dark:bg-emerald-950/20 dark:text-emerald-100">
+                <span className="font-semibold">Bulk import:</span> each CSV row creates a lead and
+                pipeline deal.{' '}
+                <button
+                    type="button"
+                    onClick={() => {
+                        setShowImport(true);
+                        setShowForm(false);
+                    }}
+                    className="font-semibold underline"
+                >
+                    Open import form
+                </button>{' '}
+                or{' '}
+                <a
+                    href={route('leads.sample')}
+                    className="font-semibold underline"
+                >
+                    download sample CSV
+                </a>
+                . For marketing inbox first, use{' '}
+                <Link href={route('enquiries.index', { import: 1 })} className="font-semibold underline">
+                    Enquiries → Import enquiries
+                </Link>
+                .
+            </div>
+
             {showImport && (
                 <form
                     onSubmit={submitImport}
                     className="mb-4 rounded-2xl border border-slate-200 bg-white p-5 dark:border-slate-800 dark:bg-slate-900"
                 >
-                    <h3 className="font-semibold">Import leads from CSV</h3>
-                    <p className="mt-1 text-sm text-slate-500">
-                        Columns: name, phone, email, status, source, temperature, notes,
-                        next_follow_up_at, assigned_user. Extra columns matching your custom lead
-                        fields are imported too. Each row creates a lead and pipeline deal.
-                    </p>
+                    <div className="flex flex-wrap items-start justify-between gap-3">
+                        <div>
+                            <h3 className="font-semibold">Import leads from CSV</h3>
+                            <p className="mt-1 text-sm text-slate-500">
+                                Columns: name, phone, email, status, source, temperature, notes,
+                                next_follow_up_at, assigned_user. Extra columns matching your custom lead
+                                fields are imported too.
+                            </p>
+                        </div>
+                        <button
+                            type="button"
+                            onClick={() => setShowImport(false)}
+                            className="text-sm font-medium text-slate-500 hover:text-slate-800"
+                        >
+                            Close
+                        </button>
+                    </div>
                     <div className="mt-4 flex flex-wrap items-end gap-3">
                         <div className="min-w-[220px] flex-1">
                             <InputLabel htmlFor="lead_csv_file" value="CSV file" />

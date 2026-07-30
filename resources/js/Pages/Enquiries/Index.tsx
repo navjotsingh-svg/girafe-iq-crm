@@ -212,13 +212,19 @@ export default function EnquiriesIndex({
                     <button
                         type="button"
                         onClick={() => {
-                            setShowImport(!showImport);
+                            setShowImport(true);
                             setShowForm(false);
                         }}
+                        className="rounded-xl border border-emerald-200 bg-emerald-50 px-4 py-2 text-sm font-semibold text-emerald-800 dark:border-emerald-900 dark:bg-emerald-950/40 dark:text-emerald-200"
+                    >
+                        Import enquiries
+                    </button>
+                    <Link
+                        href={route('leads.index', { import: 1 })}
                         className="rounded-xl border border-slate-200 bg-white px-4 py-2 text-sm font-semibold dark:border-slate-700 dark:bg-slate-900"
                     >
-                        {showImport ? 'Close' : 'Import CSV'}
-                    </button>
+                        Import leads →
+                    </Link>
                     <button
                         type="button"
                         onClick={() => {
@@ -232,17 +238,50 @@ export default function EnquiriesIndex({
                 </div>
             </div>
 
+            <div className="mb-6 rounded-2xl border border-dashed border-emerald-200 bg-emerald-50/50 px-4 py-3 text-sm text-emerald-900 dark:border-emerald-900 dark:bg-emerald-950/20 dark:text-emerald-100">
+                <span className="font-semibold">Bulk import:</span> upload a CSV to create enquiries
+                here, or{' '}
+                <Link
+                    href={route('leads.index', { import: 1 })}
+                    className="font-semibold underline"
+                >
+                    import leads directly
+                </Link>{' '}
+                into the pipeline.{' '}
+                <button
+                    type="button"
+                    onClick={() => {
+                        setShowImport(true);
+                        setShowForm(false);
+                    }}
+                    className="font-semibold underline"
+                >
+                    Open import form
+                </button>
+            </div>
+
             {showImport && (
                 <form
                     onSubmit={submitImport}
                     className="mb-6 rounded-2xl border border-slate-200 bg-white p-5 dark:border-slate-800 dark:bg-slate-900"
                 >
-                    <h3 className="font-semibold">Import enquiries from CSV</h3>
-                    <p className="mt-1 text-sm text-slate-500">
-                        Columns: name, email, phone, source, channel, message, assigned_user,
-                        external_id. Use <code className="text-xs">external_id</code> to avoid
-                        duplicate rows on re-import.
-                    </p>
+                    <div className="flex flex-wrap items-start justify-between gap-3">
+                        <div>
+                            <h3 className="font-semibold">Import enquiries from CSV</h3>
+                            <p className="mt-1 text-sm text-slate-500">
+                                Columns: name, email, phone, source, channel, message, assigned_user,
+                                external_id. Use <code className="text-xs">external_id</code> to avoid
+                                duplicate rows on re-import.
+                            </p>
+                        </div>
+                        <button
+                            type="button"
+                            onClick={() => setShowImport(false)}
+                            className="text-sm font-medium text-slate-500 hover:text-slate-800"
+                        >
+                            Close
+                        </button>
+                    </div>
                     <div className="mt-4 flex flex-wrap items-end gap-3">
                         <div className="min-w-[220px] flex-1">
                             <InputLabel htmlFor="enquiry_csv_file" value="CSV file" />
