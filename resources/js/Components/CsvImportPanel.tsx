@@ -159,25 +159,21 @@ export default function CsvImportPanel({
                             Map your columns
                         </p>
                         <p className="mt-1 text-xs text-slate-500">
-                            Match each CRM field to a column from your file. Only required fields
-                            must be mapped — everything else is optional.
+                            Match each CRM field to a column from your file. Unmapped fields are
+                            skipped.
                         </p>
                     </div>
 
                     <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
                         {allFields.map((field) => (
                             <div key={field.key}>
-                                <InputLabel
-                                    value={`${field.label}${field.required ? ' *' : ''}`}
-                                />
+                                <InputLabel value={field.label} />
                                 <select
                                     className={fieldClass}
                                     value={mapping[field.key] ?? ''}
                                     onChange={(e) => updateMapping(field.key, e.target.value)}
                                 >
-                                    <option value="">
-                                        {field.required ? 'Select column…' : '— Skip —'}
-                                    </option>
+                                    <option value="">— Skip —</option>
                                     {csvHeaders.map((header) => (
                                         <option key={header.key} value={header.key}>
                                             {header.label}
@@ -225,12 +221,6 @@ export default function CsvImportPanel({
                     >
                         {form.processing ? 'Importing…' : 'Import rows'}
                     </button>
-
-                    {!mappingReady && (
-                        <p className="text-xs text-amber-700 dark:text-amber-300">
-                            Map all required fields ({requiredKeys.join(', ')}) to continue.
-                        </p>
-                    )}
                 </div>
             )}
         </form>

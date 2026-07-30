@@ -378,8 +378,7 @@ export default function LeadsIndex({
             </div>
 
             <div className="mb-4 rounded-2xl border border-dashed border-emerald-200 bg-emerald-50/50 px-4 py-3 text-sm text-emerald-900 dark:border-emerald-900 dark:bg-emerald-950/20 dark:text-emerald-100">
-                <span className="font-semibold">Bulk import:</span> upload any CSV, map your columns
-                (only <strong>name</strong> and <strong>mobile</strong> required), and import.{' '}
+                <span className="font-semibold">Bulk import:</span> upload any CSV, map your columns, and import.{' '}
                 <button
                     type="button"
                     onClick={() => {
